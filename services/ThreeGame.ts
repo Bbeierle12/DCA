@@ -567,13 +567,6 @@ export class ThreeGame {
         if (isBuilding && zone === "Home Lot") {
             this.buildHighlight.visible = true;
             
-            // Set position based on mouse cursor logic in onMouseMove
-            // If mouse is active, use buildCursorPos. 
-            // If buildCursorPos is 0,0 (not set), fallback to player.
-            // But since we init at 0,0 and that's valid... let's trust it if mouse updated.
-            // However, onMouseMove updates it.
-            
-            // Snap to grid
             const gx = Math.round(this.buildCursorPos.x / TILE_SIZE) * TILE_SIZE;
             const gy = Math.round(this.buildCursorPos.y / TILE_SIZE) * TILE_SIZE;
 
@@ -668,13 +661,12 @@ export class ThreeGame {
              
              if (canBuild) {
                  if (money >= 10) {
-                     this.onInteract('build', 10, '');
+                     this.onInteract('build', 10, '-10💰');
                      const block = { x, y, z: buildLevel, type: buildItem, builder: this.myUserId || 'anon' };
                      
                      addHouseBlock(block);
                      
                      // Optimistic / Offline Update
-                     // If we are offline, or just to be snappy, we can add it visually immediately
                      if (!this.myUserId || this.myUserId.startsWith('offline_')) {
                          this.addHouseBlockMesh({ ...block, id: `offline_${Date.now()}_${Math.random()}` });
                      }
@@ -719,33 +711,14 @@ export class ThreeGame {
         // Build Cursor Raycast
         if (this.cachedState.isBuilding) {
             this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObject(this.groundPlane); // Intersect infinite plane at y=0??
-            // Better to intersect the visible ground mesh if possible, but simpler:
-            // Ground mesh is y=-0.1. Let's just intersect a mathematical plane at y=0.
-            // But wait, raycaster uses world coords.
             
-            // Actually, lets reuse the ground mesh if we can.
-            // The ground mesh is in collidableMeshes[0] usually.
-            // But simpler math:
-            const targetZ = 0; // Game Logic Y is 3D Z. 3D Y is Height.
-            // Plane equation: y = 0 (or whatever floor level * 15).
-            // Let's project to the current floor level!
+            // Project cursor to current build level plane
             const planeY = (this.cachedState.buildLevel * 15);
-            const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), planeY); // Normal points down? No up. Vector3(0, 1, 0).
-            
-            const ray = new THREE.Ray(this.camera.position, this.raycaster.ray.direction);
-            const target = new THREE.Vector3();
-            
-            // Ray-Plane intersection manually or via THREE
-            // THREE.Raycaster.ray.intersectPlane needs a plane object.
-            const p = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY); // Constant is -dist from origin
+            const p = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
             const point = new THREE.Vector3();
             this.raycaster.ray.intersectPlane(p, point);
             
             if (point) {
-                // Convert 3D point back to Game Coords (X, Z) -> (x, y)
-                // x = point.x / WORLD_SCALE
-                // y = point.z / WORLD_SCALE
                 this.buildCursorPos.x = point.x / WORLD_SCALE;
                 this.buildCursorPos.y = point.z / WORLD_SCALE;
             }

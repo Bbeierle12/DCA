@@ -36,6 +36,14 @@ export default function App() {
   });
   const [buildLevel, setBuildLevel] = useState(0);
 
+  // Refs to avoid stale state in animation loop
+  const gameStateRef = useRef(gameState);
+  const buildLevelRef = useRef(buildLevel);
+
+  // Keep refs synced
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { buildLevelRef.current = buildLevel; }, [buildLevel]);
+
   // Modals
   const [showSettings, setShowSettings] = useState(false);
   const [showPetStore, setShowPetStore] = useState(false);
@@ -52,6 +60,12 @@ export default function App() {
   useEffect(() => {
     initAuth().then(uid => setUserId(uid));
   }, []);
+
+  const addFloatingText = (text: string, color: string = 'text-yellow-300') => {
+      const id = Date.now();
+      setFloatingTexts(prev => [...prev, { id, x: window.innerWidth/2, y: window.innerHeight/2, text, color }]);
+      setTimeout(() => setFloatingTexts(prev => prev.filter(t => t.id !== id)), 1000);
+  };
 
   // Start Game Loop when Phase changes to PLAYING
   useEffect(() => {
@@ -72,9 +86,9 @@ export default function App() {
                 if (type === 'pet') setShowPetStore(true);
                 else if (type === 'food' || type === 'build') {
                     setGameState(prev => ({ ...prev, money: prev.money - cost, energy: 100 }));
-                    if(msg) addFloatingText(msg);
+                    if(msg) addFloatingText(msg, 'text-yellow-300');
                 } else if (type === 'error') {
-                    if(msg) addFloatingText(msg);
+                    if(msg) addFloatingText(msg, 'text-red-500');
                 }
             },
             (info: HoverInfo | null) => {
@@ -85,12 +99,13 @@ export default function App() {
 
         const animate = () => {
             if (gameRef.current) {
+                // Use refs to get the latest state in the loop
                 gameRef.current.update(
-                    gameState.money, 
-                    gameState.isBuilding, 
-                    gameState.buildItem,
-                    gameState.alwaysRun,
-                    buildLevel
+                    gameStateRef.current.money, 
+                    gameStateRef.current.isBuilding, 
+                    gameStateRef.current.buildItem,
+                    gameStateRef.current.alwaysRun,
+                    buildLevelRef.current
                 );
             }
             loopRef.current = requestAnimationFrame(animate);
@@ -103,7 +118,7 @@ export default function App() {
             gameRef.current = null;
         };
     }
-  }, [phase, userId]); // Re-init if user or phase really changes (should act like once)
+  }, [phase, userId]);
 
   // Sync config changes to game
   useEffect(() => {
@@ -111,12 +126,6 @@ export default function App() {
           gameRef.current.updateConfig(config);
       }
   }, [config, phase]);
-
-  const addFloatingText = (text: string) => {
-      const id = Date.now();
-      setFloatingTexts(prev => [...prev, { id, x: window.innerWidth/2, y: window.innerHeight/2, text }]);
-      setTimeout(() => setFloatingTexts(prev => prev.filter(t => t.id !== id)), 1000);
-  };
 
   const handleInteract = useCallback(() => {
       gameRef.current?.handleInteraction(gameState.money, gameState.buildItem, buildLevel, gameState.isBuilding);
@@ -136,16 +145,18 @@ export default function App() {
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, handleInteract, gameState.zone]); // dependencies matter here
+  }, [phase, handleInteract]); 
 
   const toggleBuild = () => {
-      // Use ref or latest state? We need a way to check current zone reliable.
-      // Since this function is recreated on render, accessing gameState is fine.
-      if (gameState.zone === 'Home Lot') {
-        setGameState(prev => ({ ...prev, isBuilding: !prev.isBuilding }));
-        addFloatingText(gameState.isBuilding ? "Build Mode OFF" : "Build Mode ON");
+      // Check current zone from ref to be safe, or state
+      if (gameStateRef.current.zone === 'Home Lot') {
+        setGameState(prev => {
+            const newState = !prev.isBuilding;
+            addFloatingText(newState ? "Build Mode ON" : "Build Mode OFF");
+            return { ...prev, isBuilding: newState };
+        });
       } else {
-        addFloatingText("Can't build here!");
+        addFloatingText("Can't build here!", 'text-red-500');
       }
   };
 
@@ -156,7 +167,7 @@ export default function App() {
           setShowPetStore(false);
           addFloatingText(type === 'none' ? "Pet removed" : `Bought ${type}!`);
       } else {
-          addFloatingText("Not enough money!");
+          addFloatingText("Not enough money!", 'text-red-500');
       }
   };
 
@@ -231,7 +242,7 @@ export default function App() {
                 )}
 
                 {floatingTexts.map(ft => (
-                    <div key={ft.id} className="absolute text-yellow-300 text-2xl font-bold pointer-events-none floating-text" style={{ left: ft.x, top: ft.y }}>
+                    <div key={ft.id} className={`absolute ${ft.color || 'text-yellow-300'} text-2xl font-bold pointer-events-none floating-text shadow-black drop-shadow-md`} style={{ left: ft.x, top: ft.y }}>
                         {ft.text}
                     </div>
                 ))}

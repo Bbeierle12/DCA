@@ -1,3 +1,4 @@
+
 export interface PlayerData {
   x: number;
   y: number;
@@ -50,4 +51,5 @@ export interface FloatingTextData {
   x: number; // screen x
   y: number; // screen y
   text: string;
+  color?: string; // CSS class for text color
 }
