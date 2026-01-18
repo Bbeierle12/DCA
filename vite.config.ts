@@ -18,6 +18,20 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      test: {
+        environment: 'jsdom',
+        globals: true,
+        setupFiles: ['./tests/setup.ts'],
+        exclude: ['e2e/**', '**/node_modules/**'],
+        coverage: {
+          provider: 'v8',
+          reporter: ['text', 'html', 'lcov'],
+          statements: 75,
+          branches: 70,
+          functions: 75,
+          lines: 75
+        }
       }
     };
 });

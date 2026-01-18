@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initAuth, updatePlayerInDb } from './services/firebase';
 import { ThreeGame } from './services/ThreeGame';
 import { GameConfig, GamePhase, GameState, FloatingTextData } from './types';
+import { COMBAT_CONFIG } from './constants';
 import MainMenu from './components/MainMenu';
 import CharacterCreator from './components/CharacterCreator';
 import HUD from './components/HUD';
@@ -32,7 +33,11 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>({
     money: 100, energy: 100, zone: 'City Center', level: 0,
     isBuilding: false, buildItem: 'wood',
-    showMobileControls: true, alwaysRun: false
+    showMobileControls: true, alwaysRun: false,
+    health: COMBAT_CONFIG.MAX_HEALTH,
+    maxHealth: COMBAT_CONFIG.MAX_HEALTH,
+    weapon: null,
+    isDead: false
   });
   const [buildLevel, setBuildLevel] = useState(0);
 
@@ -71,9 +76,10 @@ export default function App() {
   useEffect(() => {
     if (phase === 'PLAYING' && containerRef.current && userId) {
         const game = new ThreeGame(
-            containerRef.current, 
-            userId, 
+            containerRef.current,
+            userId,
             config,
+            // onZoneChange
             (zone: string, level: number) => {
                 setGameState(prev => {
                     if (prev.zone !== zone || prev.level !== level) {
@@ -82,6 +88,7 @@ export default function App() {
                     return prev;
                 });
             },
+            // onInteract
             (type: string, cost: number, msg: string) => {
                 if (type === 'pet') setShowPetStore(true);
                 else if (type === 'food' || type === 'build') {
@@ -89,10 +96,43 @@ export default function App() {
                     if(msg) addFloatingText(msg, 'text-yellow-300');
                 } else if (type === 'error') {
                     if(msg) addFloatingText(msg, 'text-red-500');
+                } else if (type === 'pickup' || type === 'drop') {
+                    if(msg) addFloatingText(msg, 'text-green-400');
                 }
             },
+            // onHover
             (info: HoverInfo | null) => {
                 setHoverInfo(info);
+            },
+            // onHealthChange
+            (health: number, maxHealth: number) => {
+                setGameState(prev => ({ ...prev, health, maxHealth }));
+            },
+            // onDamageDealt
+            (amount: number, x: number, y: number) => {
+                const id = Date.now() + Math.random();
+                setFloatingTexts(prev => [...prev, {
+                    id,
+                    x,
+                    y,
+                    text: `-${amount}`,
+                    color: 'text-red-500'
+                }]);
+                setTimeout(() => setFloatingTexts(prev => prev.filter(t => t.id !== id)), 1000);
+            },
+            // onDeath
+            () => {
+                setGameState(prev => ({ ...prev, isDead: true }));
+                addFloatingText('YOU DIED!', 'text-red-600');
+            },
+            // onRespawn
+            () => {
+                setGameState(prev => ({
+                    ...prev,
+                    isDead: false,
+                    health: COMBAT_CONFIG.MAX_HEALTH
+                }));
+                addFloatingText('Respawned!', 'text-green-400');
             }
         );
         gameRef.current = game;
@@ -101,12 +141,28 @@ export default function App() {
             if (gameRef.current) {
                 // Use refs to get the latest state in the loop
                 gameRef.current.update(
-                    gameStateRef.current.money, 
-                    gameStateRef.current.isBuilding, 
+                    gameStateRef.current.money,
+                    gameStateRef.current.isBuilding,
                     gameStateRef.current.buildItem,
                     gameStateRef.current.alwaysRun,
                     buildLevelRef.current
                 );
+
+                // Sync combat state from game to React
+                const gameWeapon = gameRef.current.getWeapon();
+                const gameHealth = gameRef.current.getHealth();
+                const gameIsDead = gameRef.current.isDead();
+
+                if (gameStateRef.current.weapon !== gameWeapon ||
+                    gameStateRef.current.health !== gameHealth ||
+                    gameStateRef.current.isDead !== gameIsDead) {
+                    setGameState(prev => ({
+                        ...prev,
+                        weapon: gameWeapon,
+                        health: gameHealth,
+                        isDead: gameIsDead
+                    }));
+                }
             }
             loopRef.current = requestAnimationFrame(animate);
         };

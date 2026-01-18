@@ -12,6 +12,15 @@ export interface PlayerData {
   pet: string | null;
   facing: string;
   lastActive?: number;
+  // Combat sync data
+  combat?: {
+    isAttacking: boolean;
+    attackType: string | null;
+    attackStartTime: number;
+    health: number;
+    weapon: string | null;
+    isDead: boolean;
+  };
 }
 
 export interface HouseBlock {
@@ -42,6 +51,11 @@ export interface GameState {
   buildItem: string;
   showMobileControls: boolean;
   alwaysRun: boolean;
+  // Combat state
+  health: number;
+  maxHealth: number;
+  weapon: string | null;
+  isDead: boolean;
 }
 
 export type GamePhase = 'MENU' | 'CREATOR' | 'PLAYING';

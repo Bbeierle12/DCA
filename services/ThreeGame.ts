@@ -1,8 +1,11 @@
 
 import * as THREE from 'three';
-import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS } from '../constants';
+import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS } from '../constants';
 import { GameConfig, HouseBlock, PlayerData } from '../types';
 import { updatePlayerInDb, subscribeToPlayers, subscribeToHouses, addHouseBlock, removeHouseBlock } from './firebase';
+import { createStickFigure, attachWeapon, StickFigureGroup } from './StickFigure';
+import { createAnimatorState, updateAnimation, triggerAttack, triggerHitReact, getAttackHitFrame, AnimatorState } from './StickFigureAnimator';
+import { createCombatState, updateCombat, startAttack, isInHitWindow, checkHit, applyDamage, getAttackData, CombatState, equipWeapon, dropWeapon } from './CombatSystem';
 
 interface KeyState {
     [key: string]: boolean;
@@ -12,17 +15,27 @@ export class ThreeGame {
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
-    playerGroup: THREE.Group;
-    
+    playerGroup: StickFigureGroup;
+
     keys: KeyState = {};
+    analogInput: { x: number; y: number } = { x: 0, y: 0 };
     myUserId: string | null = null;
     config: GameConfig;
-    
+
     // Game State internal
-    playerData: { x: number, y: number, z: number, facing: string, speed: number } = {
-        x: 200, y: 200, z: 0, facing: 'down', speed: 4
+    playerData: {
+        x: number, y: number, z: number,
+        vx: number, vy: number, // velocity
+        facing: string
+    } = {
+        x: 200, y: 200, z: 0,
+        vx: 0, vy: 0,
+        facing: 'down'
     };
-    
+
+    // Settings
+    cameraRelativeMovement: boolean = true;
+
     // Cached State for Events
     cachedState = {
         money: 0,
@@ -32,10 +45,23 @@ export class ThreeGame {
         alwaysRun: false
     };
 
+    // Animation and Combat
+    animatorState: AnimatorState;
+    combatState: CombatState;
+    lastTime: number = 0;
+    hitCheckedThisAttack: boolean = false;
+
+    // Weapon pickups
+    weaponPickups: { mesh: THREE.Group, type: string, x: number, y: number, taken: boolean }[] = [];
+
     // Callbacks
     onZoneChange: (zone: string, level: number) => void;
     onInteract: (type: string, cost: number, msg: string) => void;
     onHover: (info: { label: string, type: string, x: number, y: number } | null) => void;
+    onHealthChange: (health: number, maxHealth: number) => void;
+    onDamageDealt: (amount: number, x: number, y: number) => void;
+    onDeath: () => void;
+    onRespawn: () => void;
     
     // Assets
     otherPlayers: Record<string, { mesh: THREE.Group, data: PlayerData }> = {};
@@ -71,18 +97,30 @@ export class ThreeGame {
     unsubHouses: () => void = () => {};
 
     constructor(
-        container: HTMLElement, 
-        userId: string, 
-        config: GameConfig, 
-        onZoneChange: any, 
+        container: HTMLElement,
+        userId: string,
+        config: GameConfig,
+        onZoneChange: any,
         onInteract: any,
-        onHover: any
+        onHover: any,
+        onHealthChange?: (health: number, maxHealth: number) => void,
+        onDamageDealt?: (amount: number, x: number, y: number) => void,
+        onDeath?: () => void,
+        onRespawn?: () => void
     ) {
         this.myUserId = userId;
         this.config = config;
         this.onZoneChange = onZoneChange;
         this.onInteract = onInteract;
         this.onHover = onHover;
+        this.onHealthChange = onHealthChange || (() => {});
+        this.onDamageDealt = onDamageDealt || (() => {});
+        this.onDeath = onDeath || (() => {});
+        this.onRespawn = onRespawn || (() => {});
+
+        // Initialize animation and combat
+        this.animatorState = createAnimatorState();
+        this.combatState = createCombatState();
 
         // Scene Setup
         this.scene = new THREE.Scene();
@@ -114,9 +152,12 @@ export class ThreeGame {
 
         // World Gen
         this.initWorld();
-        
-        // Player
-        this.playerGroup = this.createCharacterMesh(config);
+
+        // Weapon Pickups
+        this.initWeaponPickups();
+
+        // Player (Stick Figure)
+        this.playerGroup = this.createStickFigureMesh(config);
         this.scene.add(this.playerGroup);
 
         // Builder Highlight
@@ -247,56 +288,135 @@ export class ThreeGame {
         this.scene.add(group);
     }
 
-    createCharacterMesh(cfg: GameConfig) {
-        const group = new THREE.Group();
-        
-        // Materials
-        const skinMat = new THREE.MeshLambertMaterial({ color: cfg.skin });
-        const shirtMat = new THREE.MeshLambertMaterial({ color: cfg.shirt });
-        const pantsMat = new THREE.MeshLambertMaterial({ color: cfg.pants });
-        const hairMat = new THREE.MeshLambertMaterial({ color: cfg.hair });
-        
-        const body = new THREE.Mesh(new THREE.BoxGeometry(4, 5, 2), shirtMat);
-        body.position.y = 4.5; group.add(body);
-
-        const head = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), skinMat);
-        head.position.y = 8.5; group.add(head);
-
-        const hair = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1, 3.2), hairMat);
-        hair.position.y = 10.2; group.add(hair);
-
-        const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.8), pantsMat);
-        leftLeg.position.set(-1, 2, 0); group.add(leftLeg);
-        const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.8), pantsMat);
-        rightLeg.position.set(1, 2, 0); group.add(rightLeg);
+    createStickFigureMesh(cfg: GameConfig): StickFigureGroup {
+        const figure = createStickFigure(cfg);
 
         // Name Tag
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        if(ctx) {
+        if (ctx) {
             canvas.width = 256; canvas.height = 64;
-            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0,0,256,64);
-            ctx.fillStyle = 'white'; ctx.font = '40px Arial'; 
+            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, 256, 64);
+            ctx.fillStyle = 'white'; ctx.font = '40px Arial';
             ctx.textAlign = 'center'; ctx.fillText(cfg.name, 128, 45);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.position.y = 14; sprite.scale.set(10, 2.5, 1);
-            group.add(sprite);
+            sprite.position.y = 16; sprite.scale.set(10, 2.5, 1);
+            figure.add(sprite);
         }
 
         if (cfg.pet && cfg.pet !== 'none') {
             const pm = this.createPetMesh(cfg.pet);
-            pm.position.set(4,0,4); group.add(pm);
+            pm.position.set(4, 0, 4); figure.add(pm);
         }
 
-        // Shadows & Tags
-        group.traverse(o => { 
-            if(o instanceof THREE.Mesh) { 
-                o.castShadow = true; 
-                o.receiveShadow = true;
+        // Tags
+        figure.traverse(o => {
+            if (o instanceof THREE.Mesh) {
                 this.tagMesh(o, cfg.name, 'Citizen');
             }
         });
+
+        return figure;
+    }
+
+    // Keep old method for compatibility (redirects to new one)
+    createCharacterMesh(cfg: GameConfig) {
+        return this.createStickFigureMesh(cfg);
+    }
+
+    initWeaponPickups() {
+        WEAPON_SPAWNS.forEach(spawn => {
+            const pickup = this.createWeaponPickupMesh(spawn.type);
+            pickup.position.set(spawn.x * WORLD_SCALE, 2, spawn.y * WORLD_SCALE);
+            this.scene.add(pickup);
+            this.weaponPickups.push({
+                mesh: pickup,
+                type: spawn.type,
+                x: spawn.x,
+                y: spawn.y,
+                taken: false
+            });
+        });
+    }
+
+    createWeaponPickupMesh(type: string): THREE.Group {
+        const group = new THREE.Group();
+
+        // Floating platform
+        const platformGeo = new THREE.CylinderGeometry(3, 3, 0.5, 16);
+        const platformMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+        const platform = new THREE.Mesh(platformGeo, platformMat);
+        platform.castShadow = true;
+        group.add(platform);
+
+        // Weapon visual
+        let weaponColor = 0x8B4513; // Brown for bat
+        if (type === 'sword') weaponColor = 0xcccccc;
+        if (type === 'axe') weaponColor = 0x888888;
+
+        const weaponGeo = new THREE.BoxGeometry(1, 4, 0.5);
+        const weaponMat = new THREE.MeshLambertMaterial({ color: weaponColor });
+        const weapon = new THREE.Mesh(weaponGeo, weaponMat);
+        weapon.position.y = 3;
+        weapon.rotation.z = 0.2;
+        weapon.castShadow = true;
+        group.add(weapon);
+
+        // Glow ring
+        const ringGeo = new THREE.TorusGeometry(3.5, 0.2, 8, 32);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: type === 'sword' ? 0x00ff00 : type === 'axe' ? 0xff0000 : 0xffff00,
+            transparent: true,
+            opacity: 0.6
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0.5;
+        group.add(ring);
+
+        this.tagMesh(platform, `${type.charAt(0).toUpperCase() + type.slice(1)} Pickup`, 'Weapon');
+        this.tagMesh(weapon, `${type.charAt(0).toUpperCase() + type.slice(1)}`, 'Weapon');
+
         return group;
+    }
+
+    updateWeaponPickups(deltaTime: number) {
+        this.weaponPickups.forEach(pickup => {
+            if (!pickup.taken) {
+                // Floating animation
+                pickup.mesh.position.y = 2 + Math.sin(Date.now() * 0.003) * 0.5;
+                pickup.mesh.rotation.y += deltaTime * 2;
+
+                // Check if player can pick up
+                const dist = Math.hypot(
+                    this.playerData.x - pickup.x,
+                    this.playerData.y - pickup.y
+                );
+
+                if (dist < 30 && !this.combatState.weapon) {
+                    // Pick up weapon
+                    pickup.taken = true;
+                    pickup.mesh.visible = false;
+                    equipWeapon(this.combatState, pickup.type);
+                    attachWeapon(this.playerGroup, pickup.type);
+                    this.onInteract('pickup', 0, `Picked up ${pickup.type}!`);
+
+                    // Respawn after 30 seconds
+                    setTimeout(() => {
+                        pickup.taken = false;
+                        pickup.mesh.visible = true;
+                    }, 30000);
+                }
+            }
+        });
+    }
+
+    handleDropWeapon() {
+        if (this.combatState.weapon) {
+            const droppedWeapon = dropWeapon(this.combatState);
+            attachWeapon(this.playerGroup, null);
+            this.onInteract('drop', 0, `Dropped ${droppedWeapon}!`);
+        }
     }
 
     createPetMesh(type: string) {
@@ -321,21 +441,61 @@ export class ThreeGame {
 
     updateOtherPlayer(id: string, data: PlayerData) {
         if (!this.otherPlayers[id]) {
-            const mesh = this.createCharacterMesh(data as GameConfig);
+            const mesh = this.createStickFigureMesh(data as GameConfig);
             this.scene.add(mesh);
-            this.otherPlayers[id] = { mesh, data };
+            this.otherPlayers[id] = {
+                mesh,
+                data,
+                animatorState: createAnimatorState()
+            } as any;
         } else {
-            const p = this.otherPlayers[id];
-            // visual update
-            const target = new THREE.Vector3(data.x * WORLD_SCALE, (data.z||0)*15, data.y * WORLD_SCALE);
+            const p = this.otherPlayers[id] as any;
+            // Visual update
+            const target = new THREE.Vector3(data.x * WORLD_SCALE, (data.z || 0) * 15, data.y * WORLD_SCALE);
             p.mesh.position.lerp(target, 0.3);
-            
+
+            // Update rotation based on facing
+            if (data.facing === 'down') p.mesh.rotation.y = 0;
+            else if (data.facing === 'up') p.mesh.rotation.y = Math.PI;
+            else if (data.facing === 'left') p.mesh.rotation.y = Math.PI / 2;
+            else if (data.facing === 'right') p.mesh.rotation.y = -Math.PI / 2;
+
             // Check if appearance changed
             if (p.data.skin !== data.skin || p.data.pet !== data.pet || p.data.shirt !== data.shirt) {
                 this.scene.remove(p.mesh);
-                p.mesh = this.createCharacterMesh(data as GameConfig);
+                p.mesh = this.createStickFigureMesh(data as GameConfig);
                 this.scene.add(p.mesh);
+                p.animatorState = createAnimatorState();
             }
+
+            // Handle weapon changes
+            const oldWeapon = p.data.combat?.weapon || null;
+            const newWeapon = data.combat?.weapon || null;
+            if (oldWeapon !== newWeapon) {
+                attachWeapon(p.mesh as StickFigureGroup, newWeapon);
+            }
+
+            // Update animation for other players
+            const isMoving = p.data.x !== data.x || p.data.y !== data.y;
+            const deltaTime = 0.016; // Approximate frame time
+
+            // Trigger attack animation if they started attacking
+            if (data.combat?.isAttacking && !p.data.combat?.isAttacking) {
+                const attackType = data.combat.attackType as 'punch' | 'kick' | 'weapon';
+                if (attackType) {
+                    triggerAttack(p.animatorState, attackType);
+                }
+            }
+
+            // Handle death visibility
+            if (data.combat?.isDead) {
+                p.mesh.visible = false;
+            } else {
+                p.mesh.visible = true;
+            }
+
+            updateAnimation(p.mesh as StickFigureGroup, p.animatorState, deltaTime, isMoving, false);
+
             p.data = data;
         }
     }
@@ -481,79 +641,237 @@ export class ThreeGame {
     }
 
     update(money: number, isBuilding: boolean, buildItem: string, alwaysRun: boolean, buildLevel: number) {
+        // Calculate delta time
+        const currentTime = performance.now() / 1000;
+        const deltaTime = this.lastTime === 0 ? 0.016 : Math.min(currentTime - this.lastTime, 0.1);
+        this.lastTime = currentTime;
+
         // Update cached state for events
         this.cachedState = { money, isBuilding, buildItem, buildLevel, alwaysRun };
 
         // Mouse Hover Check
         this.checkHover(isBuilding);
 
-        // Movement Logic
-        const speed = alwaysRun ? 7 : 4;
-        let dx = 0; let dy = 0;
-        
-        if (this.keys['w'] || this.keys['ArrowUp']) { dy = -speed; this.playerData.facing = 'up'; }
-        if (this.keys['s'] || this.keys['ArrowDown']) { dy = speed; this.playerData.facing = 'down'; }
-        if (this.keys['a'] || this.keys['ArrowLeft']) { dx = -speed; this.playerData.facing = 'left'; }
-        if (this.keys['d'] || this.keys['ArrowRight']) { dx = speed; this.playerData.facing = 'right'; }
+        // Don't allow movement or actions if dead
+        if (this.combatState.isDead) {
+            // Update combat for respawn timer
+            const wasDeadBefore = this.combatState.isDead;
+            updateCombat(this.combatState, deltaTime, currentTime);
 
-        const isMoving = dx !== 0 || dy !== 0;
-        
+            // Check for respawn
+            if (wasDeadBefore && !this.combatState.isDead) {
+                this.handleRespawn();
+            }
+
+            // Still render
+            this.updateCamera();
+            this.renderer.render(this.scene, this.camera);
+            return;
+        }
+
+        // Movement Logic - Time-based with acceleration
+        let targetSpeed = alwaysRun ? PLAYER_PHYSICS.RUN_SPEED : PLAYER_PHYSICS.WALK_SPEED;
+        if (this.combatState.isAttacking) {
+            targetSpeed *= PLAYER_PHYSICS.ATTACK_SPEED_MULTIPLIER;
+        }
+
+        // Get raw input (keyboard)
+        let inputX = 0;
+        let inputY = 0;
+        if (this.keys['w'] || this.keys['ArrowUp']) inputY = -1;
+        if (this.keys['s'] || this.keys['ArrowDown']) inputY = 1;
+        if (this.keys['a'] || this.keys['ArrowLeft']) inputX = -1;
+        if (this.keys['d'] || this.keys['ArrowRight']) inputX = 1;
+
+        // Optional: analog input (virtual stick)
+        const analogX = this.analogInput.x;
+        const analogY = this.analogInput.y;
+        const analogLength = Math.sqrt(analogX * analogX + analogY * analogY);
+
+        // Prefer analog input if present
+        if (analogLength > 0) {
+            inputX = analogX;
+            inputY = analogY;
+        }
+
+        // Normalize diagonal input to prevent speed boost (keep analog magnitude)
+        let inputLength = Math.sqrt(inputX * inputX + inputY * inputY);
+        if (inputLength > 1) {
+            inputX /= inputLength;
+            inputY /= inputLength;
+            inputLength = 1;
+        }
+
+        // Optional: Camera-relative movement
+        if (this.cameraRelativeMovement && inputLength > 0) {
+            const camAngle = this.cameraState.theta;
+            const cos = Math.cos(camAngle);
+            const sin = Math.sin(camAngle);
+            const rotatedX = inputX * cos - inputY * sin;
+            const rotatedY = inputX * sin + inputY * cos;
+            inputX = rotatedX;
+            inputY = rotatedY;
+        }
+
+        // Calculate target velocity
+        const targetVx = inputX * targetSpeed;
+        const targetVy = inputY * targetSpeed;
+
+        // Apply acceleration/deceleration
+        const isMoving = inputLength > 0;
+        const accel = isMoving ? PLAYER_PHYSICS.ACCELERATION : PLAYER_PHYSICS.DECELERATION;
+
+        // Smoothly interpolate velocity toward target
+        const velDiffX = targetVx - this.playerData.vx;
+        const velDiffY = targetVy - this.playerData.vy;
+        const maxChange = accel * deltaTime;
+
+        if (Math.abs(velDiffX) <= maxChange) {
+            this.playerData.vx = targetVx;
+        } else {
+            this.playerData.vx += Math.sign(velDiffX) * maxChange;
+        }
+
+        if (Math.abs(velDiffY) <= maxChange) {
+            this.playerData.vy = targetVy;
+        } else {
+            this.playerData.vy += Math.sign(velDiffY) * maxChange;
+        }
+
+        // Snap to zero when no input and near stop threshold
+        if (!isMoving) {
+            if (Math.abs(this.playerData.vx) < PLAYER_PHYSICS.STOP_THRESHOLD) this.playerData.vx = 0;
+            if (Math.abs(this.playerData.vy) < PLAYER_PHYSICS.STOP_THRESHOLD) this.playerData.vy = 0;
+        }
+
+        // Add knockback to velocity (time-based decay)
+        const knockbackDecay = Math.pow(COMBAT_CONFIG.KNOCKBACK_DECAY, deltaTime * 60); // Normalize to 60fps
+        this.combatState.knockbackVelocity.x *= knockbackDecay;
+        this.combatState.knockbackVelocity.z *= knockbackDecay;
+
+        // Stop very small knockback
+        if (Math.abs(this.combatState.knockbackVelocity.x) < 0.5) this.combatState.knockbackVelocity.x = 0;
+        if (Math.abs(this.combatState.knockbackVelocity.z) < 0.5) this.combatState.knockbackVelocity.z = 0;
+
+        // Calculate movement delta (time-based)
+        let dx = (this.playerData.vx + this.combatState.knockbackVelocity.x) * deltaTime;
+        let dy = (this.playerData.vy + this.combatState.knockbackVelocity.z) * deltaTime;
+
+        // Clamp step size to prevent tunneling at low FPS
+        const stepLength = Math.sqrt(dx * dx + dy * dy);
+        if (stepLength > PLAYER_PHYSICS.MAX_STEP) {
+            const scale = PLAYER_PHYSICS.MAX_STEP / stepLength;
+            dx *= scale;
+            dy *= scale;
+        }
+
+        // Update facing direction based on input (not velocity)
+        if (inputLength > 0) {
+            if (Math.abs(inputY) > Math.abs(inputX)) {
+                this.playerData.facing = inputY < 0 ? 'up' : 'down';
+            } else {
+                this.playerData.facing = inputX < 0 ? 'left' : 'right';
+            }
+        } else {
+            const facingVx = this.playerData.vx + this.combatState.knockbackVelocity.x;
+            const facingVy = this.playerData.vy + this.combatState.knockbackVelocity.z;
+            if (Math.abs(facingVx) > 0.01 || Math.abs(facingVy) > 0.01) {
+                if (Math.abs(facingVy) > Math.abs(facingVx)) {
+                    this.playerData.facing = facingVy < 0 ? 'up' : 'down';
+                } else {
+                    this.playerData.facing = facingVx < 0 ? 'left' : 'right';
+                }
+            }
+        }
+
+        // Axis-separated collision detection for wall sliding
+        const pw = PLAYER_PHYSICS.COLLISION_WIDTH;
+        const ph = PLAYER_PHYSICS.COLLISION_HEIGHT;
+
+        // Try X movement first
         let nx = this.playerData.x + dx;
-        let ny = this.playerData.y + dy;
-        
-        // Boundaries
-        if (nx < 0) nx = 0; if (ny < 0) ny = 0;
-        if (nx > MAP_WIDTH * TILE_SIZE) nx = MAP_WIDTH * TILE_SIZE;
-        if (ny > MAP_HEIGHT * TILE_SIZE) ny = MAP_HEIGHT * TILE_SIZE;
+        let ny = this.playerData.y;
 
-        // Collision
-        let collided = false;
-        // Buildings
-        if (this.playerData.z === 0) {
-            for(const b of this.buildings) {
-                if (nx < b.x + b.w && nx + 24 > b.x && ny < b.y + b.h && ny + 32 > b.y) { collided = true; break; }
-            }
-        }
-        // Blocks (Walls)
-        for(const h of this.houseBlocks) {
-            const bz = h.z;
-            // Collide with walls/tables but NOT floors or flowers
-            if (bz === this.playerData.z && (h.type === 'wood' || h.type === 'stone' || h.type === 'table')) {
-                if (nx < h.x + TILE_SIZE && nx + 24 > h.x && ny < h.y + TILE_SIZE && ny + 32 > h.y) { collided = true; break; }
-            }
-        }
-
-        if (!collided) {
+        if (!this.checkCollision(nx, ny, pw, ph)) {
             this.playerData.x = nx;
-            this.playerData.y = ny;
+        } else {
+            // X collision - stop X velocity
+            this.playerData.vx = 0;
+            this.combatState.knockbackVelocity.x = 0;
         }
 
-        // Falling off 2nd floor if not on floor tile
-        if (this.playerData.z === 1 && ny < 600) { 
-             this.playerData.z = 0; 
+        // Then try Y movement
+        nx = this.playerData.x;
+        ny = this.playerData.y + dy;
+
+        if (!this.checkCollision(nx, ny, pw, ph)) {
+            this.playerData.y = ny;
+        } else {
+            // Y collision - stop Y velocity
+            this.playerData.vy = 0;
+            this.combatState.knockbackVelocity.z = 0;
+        }
+
+        // Boundaries
+        this.playerData.x = Math.max(0, Math.min(MAP_WIDTH * TILE_SIZE - pw, this.playerData.x));
+        this.playerData.y = Math.max(0, Math.min(MAP_HEIGHT * TILE_SIZE - ph, this.playerData.y));
+
+        // Second floor fall - check if standing on an actual floor tile
+        if (this.playerData.z === 1) {
+            if (!this.isOnFloorTile()) {
+                this.playerData.z = 0;
+            }
         }
 
         // Update Mesh
         const targetPos = new THREE.Vector3(this.playerData.x * WORLD_SCALE, (this.playerData.z * 15), this.playerData.y * WORLD_SCALE);
-        this.playerGroup.position.lerp(targetPos, 0.2);
-        
+        const positionLerp = 1 - Math.exp(-PLAYER_PHYSICS.RENDER_SMOOTHING * deltaTime);
+        this.playerGroup.position.lerp(targetPos, positionLerp);
+
         // Rotation
-        if (isMoving) {
+        if (isMoving && !this.animatorState.isAttacking) {
             if (this.playerData.facing === 'down') this.playerGroup.rotation.y = 0;
             if (this.playerData.facing === 'up') this.playerGroup.rotation.y = Math.PI;
             if (this.playerData.facing === 'left') this.playerGroup.rotation.y = Math.PI / 2;
             if (this.playerData.facing === 'right') this.playerGroup.rotation.y = -Math.PI / 2;
-            
-            // Sync
-            if (this.myUserId && Math.random() > 0.9) { // Throttled sync
-                updatePlayerInDb(this.myUserId, { 
-                    x: Math.round(this.playerData.x), 
-                    y: Math.round(this.playerData.y), 
-                    z: this.playerData.z, 
-                    facing: this.playerData.facing,
-                    lastActive: Date.now()
-                });
-            }
+        }
+
+        // Update Animation
+        updateAnimation(this.playerGroup, this.animatorState, deltaTime, isMoving, alwaysRun);
+
+        // Update Combat
+        updateCombat(this.combatState, deltaTime, currentTime);
+
+        // Combat Hit Detection
+        this.updateCombatHits(currentTime);
+
+        // Update Weapon Pickups
+        this.updateWeaponPickups(deltaTime);
+
+        // Flashing effect when invincible
+        if (this.combatState.invincibleFrames > 0) {
+            this.playerGroup.visible = Math.floor(currentTime * 10) % 2 === 0;
+        } else {
+            this.playerGroup.visible = true;
+        }
+
+        // Sync position and combat state
+        if (this.myUserId && Math.random() > 0.9) { // Throttled sync
+            updatePlayerInDb(this.myUserId, {
+                x: Math.round(this.playerData.x),
+                y: Math.round(this.playerData.y),
+                z: this.playerData.z,
+                facing: this.playerData.facing,
+                lastActive: Date.now(),
+                combat: {
+                    isAttacking: this.combatState.isAttacking,
+                    attackType: this.combatState.attackType,
+                    attackStartTime: this.combatState.attackStartTime,
+                    health: this.combatState.health,
+                    weapon: this.combatState.weapon,
+                    isDead: this.combatState.isDead
+                }
+            });
         }
 
         // Zone Check
@@ -566,14 +884,14 @@ export class ThreeGame {
         // Build Highlight
         if (isBuilding && zone === "Home Lot") {
             this.buildHighlight.visible = true;
-            
+
             const gx = Math.round(this.buildCursorPos.x / TILE_SIZE) * TILE_SIZE;
             const gy = Math.round(this.buildCursorPos.y / TILE_SIZE) * TILE_SIZE;
 
             this.buildHighlight.position.set(
-                gx * WORLD_SCALE + (TILE_SIZE*WORLD_SCALE)/2, 
-                (buildLevel * 15) + 5, 
-                gy * WORLD_SCALE + (TILE_SIZE*WORLD_SCALE)/2
+                gx * WORLD_SCALE + (TILE_SIZE * WORLD_SCALE) / 2,
+                (buildLevel * 15) + 5,
+                gy * WORLD_SCALE + (TILE_SIZE * WORLD_SCALE) / 2
             );
         } else {
             this.buildHighlight.visible = false;
@@ -581,6 +899,165 @@ export class ThreeGame {
 
         this.updateCamera();
         this.renderer.render(this.scene, this.camera);
+    }
+
+    // Collision detection helper - checks if player at (x, y) with bounds (w, h) collides
+    checkCollision(x: number, y: number, w: number, h: number): boolean {
+        // Check buildings
+        if (this.playerData.z === 0) {
+            for (const b of this.buildings) {
+                if (x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y) {
+                    return true;
+                }
+            }
+        }
+
+        // Check blocks (walls/tables)
+        for (const block of this.houseBlocks) {
+            if (block.z !== this.playerData.z) continue;
+            if (block.type !== 'wood' && block.type !== 'stone' && block.type !== 'table') continue;
+
+            if (x < block.x + TILE_SIZE && x + w > block.x &&
+                y < block.y + TILE_SIZE && y + h > block.y) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Check if player is standing on a floor tile (for second floor logic)
+    isOnFloorTile(): boolean {
+        const pw = PLAYER_PHYSICS.COLLISION_WIDTH;
+        const ph = PLAYER_PHYSICS.COLLISION_HEIGHT;
+
+        // Check center and corners of player bounds
+        const checkPoints = [
+            { x: this.playerData.x + pw / 2, y: this.playerData.y + ph / 2 }, // center
+            { x: this.playerData.x, y: this.playerData.y }, // top-left
+            { x: this.playerData.x + pw, y: this.playerData.y }, // top-right
+            { x: this.playerData.x, y: this.playerData.y + ph }, // bottom-left
+            { x: this.playerData.x + pw, y: this.playerData.y + ph }, // bottom-right
+        ];
+
+        for (const point of checkPoints) {
+            const tileX = Math.floor(point.x / TILE_SIZE) * TILE_SIZE;
+            const tileY = Math.floor(point.y / TILE_SIZE) * TILE_SIZE;
+
+            // Check if there's a floor tile at this position on current z level
+            const hasFloor = this.houseBlocks.some(b =>
+                b.type === 'floor' &&
+                b.z === this.playerData.z &&
+                b.x === tileX &&
+                b.y === tileY
+            );
+
+            if (hasFloor) return true;
+        }
+
+        // Also check for stairs
+        const stairCheck = this.houseBlocks.some(b =>
+            b.type === 'stairs' &&
+            b.z === this.playerData.z &&
+            this.playerData.x < b.x + TILE_SIZE && this.playerData.x + pw > b.x &&
+            this.playerData.y < b.y + TILE_SIZE && this.playerData.y + ph > b.y
+        );
+
+        return stairCheck;
+    }
+
+    updateCombatHits(currentTime: number) {
+        // Check if we're in a hit window and haven't checked yet
+        if (isInHitWindow(this.combatState, currentTime) && !this.hitCheckedThisAttack) {
+            this.hitCheckedThisAttack = true;
+
+            const attackerPos = this.playerGroup.position.clone();
+            const attackerRotation = this.playerGroup.rotation.y;
+
+            // Check hits against other players
+            Object.entries(this.otherPlayers).forEach(([id, player]) => {
+                const targetPos = player.mesh.position.clone();
+
+                if (checkHit(attackerPos, attackerRotation, targetPos, this.combatState.attackType!, this.combatState.weapon)) {
+                    // Calculate knockback direction
+                    const knockbackDir = {
+                        x: targetPos.x - attackerPos.x,
+                        z: targetPos.z - attackerPos.z
+                    };
+
+                    const attackData = getAttackData(this.combatState.attackType!, this.combatState.weapon);
+
+                    // Note: In a real multiplayer game, damage would be validated server-side
+                    // For this demo, we just show damage numbers locally
+                    const screenPos = this.worldToScreen(targetPos);
+                    this.onDamageDealt(attackData.damage, screenPos.x, screenPos.y);
+                }
+            });
+        }
+
+        // Reset hit check when attack ends
+        if (!this.combatState.isAttacking) {
+            this.hitCheckedThisAttack = false;
+        }
+    }
+
+    worldToScreen(worldPos: THREE.Vector3): { x: number, y: number } {
+        const vector = worldPos.clone();
+        vector.project(this.camera);
+
+        return {
+            x: (vector.x * 0.5 + 0.5) * window.innerWidth,
+            y: (vector.y * -0.5 + 0.5) * window.innerHeight
+        };
+    }
+
+    handleRespawn() {
+        // Reset position to spawn point
+        this.playerData.x = 200;
+        this.playerData.y = 200;
+        this.playerData.z = 0;
+        // Reset velocity
+        this.playerData.vx = 0;
+        this.playerData.vy = 0;
+        this.onRespawn();
+        this.onHealthChange(this.combatState.health, this.combatState.maxHealth);
+    }
+
+    // Toggle camera-relative movement
+    setCameraRelativeMovement(enabled: boolean) {
+        this.cameraRelativeMovement = enabled;
+    }
+
+    // Attack methods
+    handleAttack(type: 'punch' | 'kick' | 'weapon') {
+        if (this.combatState.isDead) return;
+
+        if (type === 'weapon' && !this.combatState.weapon) {
+            // No weapon equipped, do punch instead
+            type = 'punch';
+        }
+
+        const currentTime = performance.now() / 1000;
+        if (startAttack(this.combatState, type, currentTime)) {
+            triggerAttack(this.animatorState, type);
+        }
+    }
+
+    // Get combat state for UI
+    getHealth(): number {
+        return this.combatState.health;
+    }
+
+    getMaxHealth(): number {
+        return this.combatState.maxHealth;
+    }
+
+    getWeapon(): string | null {
+        return this.combatState.weapon;
+    }
+
+    isDead(): boolean {
+        return this.combatState.isDead;
     }
 
     updateCamera() {
@@ -682,13 +1159,27 @@ export class ThreeGame {
     updateConfig(newConfig: GameConfig) {
         this.config = newConfig;
         this.scene.remove(this.playerGroup);
-        this.playerGroup = this.createCharacterMesh(newConfig);
+        this.playerGroup = this.createStickFigureMesh(newConfig);
+        // Re-attach weapon if equipped
+        if (this.combatState.weapon) {
+            attachWeapon(this.playerGroup, this.combatState.weapon);
+        }
         this.scene.add(this.playerGroup);
-        if(this.myUserId) updatePlayerInDb(this.myUserId, newConfig as any);
+        if (this.myUserId) updatePlayerInDb(this.myUserId, newConfig as any);
     }
 
     setKey(key: string, pressed: boolean) {
         this.keys[key] = pressed;
+    }
+
+    setAnalogInput(x: number, y: number) {
+        const length = Math.sqrt(x * x + y * y);
+        if (length > 1) {
+            x /= length;
+            y /= length;
+        }
+        this.analogInput.x = x;
+        this.analogInput.y = y;
     }
 
     onResize = () => {
@@ -759,7 +1250,22 @@ export class ThreeGame {
         this.adjustZoom(e.deltaY * 0.1);
     }
 
-    onKeyDown = (e: KeyboardEvent) => this.keys[e.key] = true;
+    onKeyDown = (e: KeyboardEvent) => {
+        this.keys[e.key] = true;
+
+        // Attack controls
+        const key = e.key.toLowerCase();
+        if (key === 'j' || key === 'z') {
+            this.handleAttack('punch');
+        } else if (key === 'k' || key === 'x') {
+            this.handleAttack('kick');
+        } else if (key === 'l' || key === 'c') {
+            this.handleAttack('weapon');
+        } else if (key === 'q') {
+            this.handleDropWeapon();
+        }
+    };
+
     onKeyUp = (e: KeyboardEvent) => this.keys[e.key] = false;
 
     cleanup() {
