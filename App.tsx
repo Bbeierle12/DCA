@@ -17,6 +17,44 @@ const DEFAULT_CONFIG: GameConfig = {
   name: 'Citizen', pet: null
 };
 
+const DEFAULT_SETTINGS = {
+  showMobileControls: true,
+  alwaysRun: false,
+  invertYCamera: false,
+  cameraSensitivity: 1.0,
+  cameraRelativeMovement: true,
+  renderDistance: 700,
+  shadowQuality: 'medium' as const,
+  showOtherPlayers: true,
+  masterVolume: 100,
+  musicVolume: 80,
+  sfxVolume: 100,
+  showDamageNumbers: true,
+  showTooltips: true,
+};
+
+const SETTINGS_STORAGE_KEY = 'dca-game-settings';
+
+function loadSettings(): Partial<typeof DEFAULT_SETTINGS> {
+  try {
+    const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load settings:', e);
+  }
+  return {};
+}
+
+function saveSettings(settings: typeof DEFAULT_SETTINGS) {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch (e) {
+    console.warn('Failed to save settings:', e);
+  }
+}
+
 interface HoverInfo {
     label: string;
     type: string;
@@ -29,15 +67,19 @@ export default function App() {
   const [userId, setUserId] = useState<string | null>(null);
   const [config, setConfig] = useState<GameConfig>(DEFAULT_CONFIG);
   
-  // Game State
-  const [gameState, setGameState] = useState<GameState>({
-    money: 100, energy: 100, zone: 'City Center', level: 0,
-    isBuilding: false, buildItem: 'wood',
-    showMobileControls: true, alwaysRun: false,
-    health: COMBAT_CONFIG.MAX_HEALTH,
-    maxHealth: COMBAT_CONFIG.MAX_HEALTH,
-    weapon: null,
-    isDead: false
+  // Game State - merge saved settings with defaults
+  const [gameState, setGameState] = useState<GameState>(() => {
+    const savedSettings = loadSettings();
+    return {
+      money: 100, energy: 100, zone: 'City Center', level: 0,
+      isBuilding: false, buildItem: 'wood',
+      health: COMBAT_CONFIG.MAX_HEALTH,
+      maxHealth: COMBAT_CONFIG.MAX_HEALTH,
+      weapon: null,
+      isDead: false,
+      ...DEFAULT_SETTINGS,
+      ...savedSettings,
+    };
   });
   const [buildLevel, setBuildLevel] = useState(0);
 
@@ -48,6 +90,31 @@ export default function App() {
   // Keep refs synced
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { buildLevelRef.current = buildLevel; }, [buildLevel]);
+
+  // Save settings to localStorage when they change
+  useEffect(() => {
+    const settingsToSave = {
+      showMobileControls: gameState.showMobileControls,
+      alwaysRun: gameState.alwaysRun,
+      invertYCamera: gameState.invertYCamera,
+      cameraSensitivity: gameState.cameraSensitivity,
+      cameraRelativeMovement: gameState.cameraRelativeMovement,
+      renderDistance: gameState.renderDistance,
+      shadowQuality: gameState.shadowQuality,
+      showOtherPlayers: gameState.showOtherPlayers,
+      masterVolume: gameState.masterVolume,
+      musicVolume: gameState.musicVolume,
+      sfxVolume: gameState.sfxVolume,
+      showDamageNumbers: gameState.showDamageNumbers,
+      showTooltips: gameState.showTooltips,
+    };
+    saveSettings(settingsToSave);
+  }, [
+    gameState.showMobileControls, gameState.alwaysRun, gameState.invertYCamera,
+    gameState.cameraSensitivity, gameState.cameraRelativeMovement, gameState.renderDistance,
+    gameState.shadowQuality, gameState.showOtherPlayers, gameState.masterVolume,
+    gameState.musicVolume, gameState.sfxVolume, gameState.showDamageNumbers, gameState.showTooltips
+  ]);
 
   // Modals
   const [showSettings, setShowSettings] = useState(false);
@@ -110,6 +177,8 @@ export default function App() {
             },
             // onDamageDealt
             (amount: number, x: number, y: number) => {
+                // Only show damage numbers if setting is enabled
+                if (!gameStateRef.current.showDamageNumbers) return;
                 const id = Date.now() + Math.random();
                 setFloatingTexts(prev => [...prev, {
                     id,
@@ -182,6 +251,26 @@ export default function App() {
           gameRef.current.updateConfig(config);
       }
   }, [config, phase]);
+
+  // Sync settings to game instance when they change
+  useEffect(() => {
+      if (gameRef.current && phase === 'PLAYING') {
+          gameRef.current.setInvertYCamera(gameState.invertYCamera);
+          gameRef.current.setCameraSensitivity(gameState.cameraSensitivity);
+          gameRef.current.setCameraRelativeMovement(gameState.cameraRelativeMovement);
+          gameRef.current.setRenderDistance(gameState.renderDistance);
+          gameRef.current.setShadowQuality(gameState.shadowQuality);
+          gameRef.current.setShowOtherPlayers(gameState.showOtherPlayers);
+      }
+  }, [
+      phase,
+      gameState.invertYCamera,
+      gameState.cameraSensitivity,
+      gameState.cameraRelativeMovement,
+      gameState.renderDistance,
+      gameState.shadowQuality,
+      gameState.showOtherPlayers
+  ]);
 
   const handleInteract = useCallback(() => {
       gameRef.current?.handleInteraction(gameState.money, gameState.buildItem, buildLevel, gameState.isBuilding);
@@ -268,8 +357,8 @@ export default function App() {
                 <HUD state={gameState} />
 
                 {/* Hover Toast */}
-                {gameState.isBuilding && activeHover && (
-                    <div 
+                {gameState.isBuilding && activeHover && gameState.showTooltips && (
+                    <div
                         className="fixed z-50 pointer-events-none bg-black/80 text-white p-3 rounded border border-white/50 shadow-lg transform -translate-y-full -translate-x-1/2 transition-all duration-75"
                         style={{ left: activeHover.x, top: activeHover.y - 20 }}
                     >

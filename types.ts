@@ -56,6 +56,21 @@ export interface GameState {
   maxHealth: number;
   weapon: string | null;
   isDead: boolean;
+  // Controls settings
+  invertYCamera: boolean;
+  cameraSensitivity: number;        // 0.1 to 2.0
+  cameraRelativeMovement: boolean;
+  // Graphics settings
+  renderDistance: number;           // 300 to 1000
+  shadowQuality: 'low' | 'medium' | 'high';
+  showOtherPlayers: boolean;
+  // Audio settings
+  masterVolume: number;             // 0 to 100
+  musicVolume: number;
+  sfxVolume: number;
+  // Gameplay settings
+  showDamageNumbers: boolean;
+  showTooltips: boolean;
 }
 
 export type GamePhase = 'MENU' | 'CREATOR' | 'PLAYING';

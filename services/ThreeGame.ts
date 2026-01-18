@@ -35,6 +35,12 @@ export class ThreeGame {
 
     // Settings
     cameraRelativeMovement: boolean = true;
+    invertYCamera: boolean = false;
+    cameraSensitivity: number = 1.0;
+    showOtherPlayersEnabled: boolean = true;
+
+    // References for settings that affect Three.js objects
+    private directionalLight: THREE.DirectionalLight | null = null;
 
     // Cached State for Events
     cachedState = {
@@ -149,6 +155,7 @@ export class ThreeGame {
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
         this.scene.add(dirLight);
+        this.directionalLight = dirLight;
 
         // World Gen
         this.initWorld();
@@ -487,8 +494,8 @@ export class ThreeGame {
                 }
             }
 
-            // Handle death visibility
-            if (data.combat?.isDead) {
+            // Handle death visibility and show other players setting
+            if (data.combat?.isDead || !this.showOtherPlayersEnabled) {
                 p.mesh.visible = false;
             } else {
                 p.mesh.visible = true;
@@ -707,8 +714,8 @@ export class ThreeGame {
             const camAngle = this.cameraState.theta;
             const cos = Math.cos(camAngle);
             const sin = Math.sin(camAngle);
-            const rotatedX = inputX * cos - inputY * sin;
-            const rotatedY = inputX * sin + inputY * cos;
+            const rotatedX = inputX * cos + inputY * sin;
+            const rotatedY = -inputX * sin + inputY * cos;
             inputX = rotatedX;
             inputY = rotatedY;
         }
@@ -1028,6 +1035,49 @@ export class ThreeGame {
         this.cameraRelativeMovement = enabled;
     }
 
+    // Set invert Y camera
+    setInvertYCamera(inverted: boolean) {
+        this.invertYCamera = inverted;
+    }
+
+    // Set camera sensitivity
+    setCameraSensitivity(value: number) {
+        this.cameraSensitivity = Math.max(0.1, Math.min(2.0, value));
+    }
+
+    // Set render distance (fog far distance)
+    setRenderDistance(distance: number) {
+        const clampedDistance = Math.max(300, Math.min(1000, distance));
+        if (this.scene.fog instanceof THREE.Fog) {
+            this.scene.fog.far = clampedDistance;
+        }
+    }
+
+    // Set shadow quality
+    setShadowQuality(quality: 'low' | 'medium' | 'high') {
+        if (!this.directionalLight) return;
+
+        const sizes: Record<string, number> = {
+            low: 512,
+            medium: 2048,
+            high: 4096
+        };
+
+        const size = sizes[quality] || 2048;
+        this.directionalLight.shadow.mapSize.width = size;
+        this.directionalLight.shadow.mapSize.height = size;
+        this.directionalLight.shadow.map?.dispose();
+        this.directionalLight.shadow.map = null as any;
+    }
+
+    // Set show other players
+    setShowOtherPlayers(show: boolean) {
+        this.showOtherPlayersEnabled = show;
+        Object.values(this.otherPlayers).forEach(player => {
+            player.mesh.visible = show && !(player.data.combat?.isDead);
+        });
+    }
+
     // Attack methods
     handleAttack(type: 'punch' | 'kick' | 'weapon') {
         if (this.combatState.isDead) return;
@@ -1192,10 +1242,12 @@ export class ThreeGame {
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         this.mouseClient = { x: e.clientX, y: e.clientY };
-        
+
         if (this.mouseState.isDown && this.mouseState.button === 2) {
-            this.cameraState.theta -= e.movementX * 0.005;
-            this.cameraState.phi -= e.movementY * 0.005;
+            const sensitivity = 0.005 * this.cameraSensitivity;
+            this.cameraState.theta -= e.movementX * sensitivity;
+            const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
+            this.cameraState.phi -= yMovement * sensitivity;
             this.cameraState.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraState.phi));
         }
 
