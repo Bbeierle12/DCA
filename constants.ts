@@ -14,7 +14,22 @@ export const COLORS = {
   SKY: 0x87CEEB,
   GROUND: 0x4CA64C,
   ROAD: 0x555555,
+  // Environment
+  SIDEWALK: 0xBBBBBB,
+  METAL: 0x333333,
+  LAMP_GLOW: 0xFFFF99,
+  DOOR: 0x4A2F1A,
+  DOOR_KNOB: 0xFFD700,
+  FOUNDATION: 0x666666,
+  FENCE: 0x8B7355,
+  HYDRANT: 0xe74c3c,
+  TRASH_CAN: 0x555555,
+  PINE_GREEN: 0x1B6B1B,
+  BUSH_GREEN: 0x32CD32,
+  OAK_GREEN: 0x228B22,
 };
+
+export const STREETLIGHT_SPACING = 40;
 
 export const PET_COSTS: Record<string, number> = {
   dog: 10,

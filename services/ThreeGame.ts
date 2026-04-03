@@ -1,6 +1,6 @@
 
 import * as THREE from 'three';
-import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS } from '../constants';
+import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS, STREETLIGHT_SPACING } from '../constants';
 import { GameConfig, HouseBlock, PlayerData } from '../types';
 import { updatePlayerInDb, subscribeToPlayers, subscribeToHouses, addHouseBlock, removeHouseBlock } from './firebase';
 import { createStickFigure, attachWeapon, StickFigureGroup } from './StickFigure';
@@ -201,35 +201,371 @@ export class ThreeGame {
         mesh.userData.hoverType = type;
     }
 
+    // ===== TEXTURE GENERATORS =====
+
+    private createGrassTexture(): THREE.CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 128;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#4CA64C';
+        ctx.fillRect(0, 0, 128, 128);
+        const greens = ['#3D8B3D', '#5CB85C', '#6FCF6F', '#44944A'];
+        for (let i = 0; i < 200; i++) {
+            ctx.fillStyle = greens[Math.floor(Math.random() * greens.length)];
+            const s = 1 + Math.random();
+            ctx.fillRect(Math.random() * 128, Math.random() * 128, s, s);
+        }
+        for (let i = 0; i < 40; i++) {
+            ctx.strokeStyle = greens[Math.floor(Math.random() * greens.length)];
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            const bx = Math.random() * 128, by = Math.random() * 128;
+            ctx.moveTo(bx, by);
+            ctx.lineTo(bx + (Math.random() - 0.5) * 4, by - 2 - Math.random() * 3);
+            ctx.stroke();
+        }
+        for (let i = 0; i < 8; i++) {
+            ctx.fillStyle = '#8B7355';
+            ctx.fillRect(Math.random() * 128, Math.random() * 128, 2 + Math.random() * 2, 1 + Math.random());
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(80, 80);
+        tex.magFilter = THREE.NearestFilter;
+        return tex;
+    }
+
+    private createSidewalkTexture(length: number): THREE.CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64; canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#BBBBBB';
+        ctx.fillRect(0, 0, 64, 64);
+        ctx.strokeStyle = '#AAAAAA';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const pos = (i / 4) * 64;
+            ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, 64); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(64, pos); ctx.stroke();
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(Math.floor(length / 4), 1);
+        tex.magFilter = THREE.NearestFilter;
+        return tex;
+    }
+
+    private createWindowTexture(baseColor: number, columns: number, rows: number): THREE.CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d')!;
+        const c = new THREE.Color(baseColor);
+        ctx.fillStyle = `rgb(${Math.floor(c.r*255)},${Math.floor(c.g*255)},${Math.floor(c.b*255)})`;
+        ctx.fillRect(0, 0, 256, 256);
+        // Floor separator lines
+        for (let r = 1; r < rows; r++) {
+            const ly = (r / rows) * 256;
+            ctx.fillStyle = `rgba(0,0,0,0.15)`;
+            ctx.fillRect(0, ly - 1, 256, 2);
+        }
+        // Windows
+        const winW = 256 / columns * 0.5;
+        const winH = 256 / rows * 0.5;
+        for (let r = 0; r < rows; r++) {
+            for (let col = 0; col < columns; col++) {
+                const cx = (col + 0.5) / columns * 256;
+                const cy = (r + 0.5) / rows * 256;
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(cx - winW/2 - 1, cy - winH/2 - 1, winW + 2, winH + 2);
+                ctx.fillStyle = '#ADD8E6';
+                ctx.fillRect(cx - winW/2, cy - winH/2, winW, winH);
+                // Window cross
+                ctx.fillStyle = '#666';
+                ctx.fillRect(cx - 0.5, cy - winH/2, 1, winH);
+                ctx.fillRect(cx - winW/2, cy - 0.5, winW, 1);
+            }
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.magFilter = THREE.NearestFilter;
+        return tex;
+    }
+
+    private createRoadTexture(length: number): THREE.CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(0, 0, 128, 64);
+        // Center line dashes
+        ctx.fillStyle = '#CCCC44';
+        for (let i = 0; i < 8; i++) {
+            ctx.fillRect(i * 16 + 2, 30, 10, 4);
+        }
+        // Edge lines
+        ctx.fillStyle = '#888888';
+        ctx.fillRect(0, 0, 128, 2);
+        ctx.fillRect(0, 62, 128, 2);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(Math.floor(length / 10), 1);
+        tex.magFilter = THREE.NearestFilter;
+        return tex;
+    }
+
+    // ===== ENVIRONMENT OBJECT CREATORS =====
+
+    private createTree(type: 'oak' | 'pine' | 'bush'): THREE.Group {
+        const group = new THREE.Group();
+        const variation = 0.85 + Math.random() * 0.3;
+
+        if (type === 'oak') {
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.2, 1.8, 10 * variation, 6),
+                new THREE.MeshLambertMaterial({ color: COLORS.WOOD })
+            );
+            trunk.position.y = 5 * variation;
+            trunk.castShadow = true;
+            group.add(trunk);
+            this.tagMesh(trunk, 'Tree', 'Nature');
+            this.collidableMeshes.push(trunk);
+
+            const greenVar = new THREE.Color(COLORS.OAK_GREEN);
+            greenVar.offsetHSL(0, 0, (Math.random() - 0.5) * 0.08);
+            const leafMat = new THREE.MeshLambertMaterial({ color: greenVar });
+
+            const leaves1 = new THREE.Mesh(new THREE.SphereGeometry(6 * variation, 8, 6), leafMat);
+            leaves1.position.y = 14 * variation;
+            leaves1.castShadow = true;
+            group.add(leaves1);
+
+            const leaves2 = new THREE.Mesh(new THREE.SphereGeometry(5 * variation, 8, 6), leafMat);
+            leaves2.position.set(3 * variation, 12 * variation, (Math.random() - 0.5) * 2);
+            group.add(leaves2);
+
+            const leaves3 = new THREE.Mesh(new THREE.SphereGeometry(4.5 * variation, 8, 6), leafMat);
+            leaves3.position.set(-2 * variation, 13 * variation, 2 * (Math.random() - 0.5));
+            group.add(leaves3);
+
+        } else if (type === 'pine') {
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.8, 1.2, 12 * variation, 6),
+                new THREE.MeshLambertMaterial({ color: COLORS.WOOD })
+            );
+            trunk.position.y = 6 * variation;
+            trunk.castShadow = true;
+            group.add(trunk);
+            this.tagMesh(trunk, 'Pine', 'Nature');
+            this.collidableMeshes.push(trunk);
+
+            const pineGreen = new THREE.Color(COLORS.PINE_GREEN);
+            pineGreen.offsetHSL(0, 0, (Math.random() - 0.5) * 0.06);
+            const pineMat = new THREE.MeshLambertMaterial({ color: pineGreen });
+
+            const cone1 = new THREE.Mesh(new THREE.ConeGeometry(5 * variation, 8 * variation, 6), pineMat);
+            cone1.position.y = 12 * variation;
+            cone1.castShadow = true;
+            group.add(cone1);
+
+            const cone2 = new THREE.Mesh(new THREE.ConeGeometry(4 * variation, 6 * variation, 6), pineMat);
+            cone2.position.y = 17 * variation;
+            group.add(cone2);
+
+            const cone3 = new THREE.Mesh(new THREE.ConeGeometry(3 * variation, 5 * variation, 6), pineMat);
+            cone3.position.y = 21 * variation;
+            group.add(cone3);
+
+        } else { // bush
+            const bushGreen = new THREE.Color(COLORS.BUSH_GREEN);
+            bushGreen.offsetHSL(0, 0, (Math.random() - 0.5) * 0.1);
+            const bushMat = new THREE.MeshLambertMaterial({ color: bushGreen });
+
+            for (let i = 0; i < 3; i++) {
+                const s = (2.5 + Math.random() * 1.5) * variation;
+                const bush = new THREE.Mesh(new THREE.SphereGeometry(s, 6, 5), bushMat);
+                bush.position.set((Math.random() - 0.5) * 3, s * 0.7, (Math.random() - 0.5) * 3);
+                group.add(bush);
+                if (i === 0) {
+                    this.tagMesh(bush, 'Bush', 'Nature');
+                    this.collidableMeshes.push(bush);
+                }
+            }
+        }
+        return group;
+    }
+
+    private createStreetlight(): THREE.Group {
+        const group = new THREE.Group();
+        const metalMat = new THREE.MeshLambertMaterial({ color: COLORS.METAL });
+
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 12, 6), metalMat);
+        pole.position.y = 6;
+        pole.castShadow = true;
+        group.add(pole);
+
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 0.3), metalMat);
+        arm.position.set(1.5, 12, 0);
+        group.add(arm);
+
+        const housing = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 2), new THREE.MeshLambertMaterial({ color: 0x555555 }));
+        housing.position.set(3, 11.5, 0);
+        group.add(housing);
+
+        const bulb = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 6, 6),
+            new THREE.MeshBasicMaterial({ color: COLORS.LAMP_GLOW })
+        );
+        bulb.position.set(3, 11, 0);
+        group.add(bulb);
+
+        this.tagMesh(pole, 'Streetlight', 'Furniture');
+        return group;
+    }
+
+    private createBench(): THREE.Group {
+        const group = new THREE.Group();
+        const woodMat = new THREE.MeshLambertMaterial({ color: COLORS.WOOD });
+        const metalMat = new THREE.MeshLambertMaterial({ color: COLORS.METAL });
+
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(5, 0.4, 1.5), woodMat);
+        seat.position.y = 2;
+        group.add(seat);
+
+        const back = new THREE.Mesh(new THREE.BoxGeometry(5, 2, 0.3), woodMat);
+        back.position.set(0, 3, -0.6);
+        back.rotation.x = -0.15;
+        group.add(back);
+
+        const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2, 1.5), metalMat);
+        leg1.position.set(-2, 1, 0);
+        group.add(leg1);
+
+        const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2, 1.5), metalMat);
+        leg2.position.set(2, 1, 0);
+        group.add(leg2);
+
+        this.tagMesh(seat, 'Bench', 'Furniture');
+        return group;
+    }
+
+    private createFenceSection(length: number): THREE.Group {
+        const group = new THREE.Group();
+        const fenceMat = new THREE.MeshLambertMaterial({ color: COLORS.FENCE });
+
+        const post1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 0.5), fenceMat);
+        post1.position.set(-length / 2, 1.5, 0);
+        group.add(post1);
+
+        const post2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 0.5), fenceMat);
+        post2.position.set(length / 2, 1.5, 0);
+        group.add(post2);
+
+        const rail1 = new THREE.Mesh(new THREE.BoxGeometry(length, 0.3, 0.3), fenceMat);
+        rail1.position.y = 1;
+        group.add(rail1);
+
+        const rail2 = new THREE.Mesh(new THREE.BoxGeometry(length, 0.3, 0.3), fenceMat);
+        rail2.position.y = 2;
+        group.add(rail2);
+
+        this.tagMesh(post1, 'Fence', 'Furniture');
+        return group;
+    }
+
+    private createTrashCan(): THREE.Group {
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(
+            new THREE.CylinderGeometry(1, 1, 2.5, 8),
+            new THREE.MeshLambertMaterial({ color: COLORS.TRASH_CAN })
+        );
+        body.position.y = 1.25;
+        group.add(body);
+
+        const lid = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.1, 1.1, 0.3, 8),
+            new THREE.MeshLambertMaterial({ color: 0x666666 })
+        );
+        lid.position.y = 2.6;
+        group.add(lid);
+
+        this.tagMesh(body, 'Trash Can', 'Furniture');
+        return group;
+    }
+
+    private createFireHydrant(): THREE.Group {
+        const group = new THREE.Group();
+        const hydrantMat = new THREE.MeshLambertMaterial({ color: COLORS.HYDRANT });
+
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 2, 8), hydrantMat);
+        body.position.y = 1;
+        group.add(body);
+
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.6, 6, 6), hydrantMat);
+        cap.position.y = 2.2;
+        group.add(cap);
+
+        this.tagMesh(body, 'Fire Hydrant', 'Furniture');
+        return group;
+    }
+
+    // ===== WORLD INITIALIZATION =====
+
     initWorld() {
-        // Ground
-        const groundGeo = new THREE.PlaneGeometry(MAP_WIDTH * TILE_SIZE * WORLD_SCALE, MAP_HEIGHT * TILE_SIZE * WORLD_SCALE);
-        const groundMat = new THREE.MeshLambertMaterial({ color: COLORS.GROUND });
+        const worldW = MAP_WIDTH * TILE_SIZE * WORLD_SCALE;
+        const worldH = MAP_HEIGHT * TILE_SIZE * WORLD_SCALE;
+
+        // Ground with grass texture
+        const groundGeo = new THREE.PlaneGeometry(worldW, worldH);
+        const groundMat = new THREE.MeshLambertMaterial({ map: this.createGrassTexture() });
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.rotation.x = -Math.PI / 2;
-        ground.position.set((MAP_WIDTH * TILE_SIZE * WORLD_SCALE)/2, -0.1, (MAP_HEIGHT * TILE_SIZE * WORLD_SCALE)/2);
+        ground.position.set(worldW / 2, -0.1, worldH / 2);
         ground.receiveShadow = true;
         this.tagMesh(ground, 'Grass', 'Terrain');
         this.scene.add(ground);
         this.collidableMeshes.push(ground);
 
-        // Roads
-        const roadGeo = new THREE.PlaneGeometry(MAP_WIDTH * TILE_SIZE * WORLD_SCALE, 100 * WORLD_SCALE);
-        const roadMat = new THREE.MeshLambertMaterial({ color: COLORS.ROAD });
+        // Roads with lane markings
+        const hRoadZ = 450 * WORLD_SCALE;
+        const vRoadX = 600 * WORLD_SCALE;
+        const roadWidth = 100 * WORLD_SCALE;
+
+        const roadGeo = new THREE.PlaneGeometry(worldW, roadWidth);
+        const roadMat = new THREE.MeshLambertMaterial({ map: this.createRoadTexture(worldW) });
         const road = new THREE.Mesh(roadGeo, roadMat);
         road.rotation.x = -Math.PI / 2;
-        road.position.set((MAP_WIDTH * TILE_SIZE * WORLD_SCALE)/2, 0, 450 * WORLD_SCALE);
+        road.position.set(worldW / 2, 0, hRoadZ);
         road.receiveShadow = true;
         this.tagMesh(road, 'Road', 'Terrain');
         this.scene.add(road);
 
-        const vRoadGeo = new THREE.PlaneGeometry(100 * WORLD_SCALE, MAP_HEIGHT * TILE_SIZE * WORLD_SCALE);
-        const vRoad = new THREE.Mesh(vRoadGeo, roadMat);
+        const vRoadGeo = new THREE.PlaneGeometry(roadWidth, worldH);
+        const vRoadTex = this.createRoadTexture(worldH);
+        vRoadTex.rotation = Math.PI / 2;
+        const vRoad = new THREE.Mesh(vRoadGeo, new THREE.MeshLambertMaterial({ map: vRoadTex }));
         vRoad.rotation.x = -Math.PI / 2;
-        vRoad.position.set(600 * WORLD_SCALE, 0.01, (MAP_HEIGHT * TILE_SIZE * WORLD_SCALE)/2);
+        vRoad.position.set(vRoadX, 0.01, worldH / 2);
         vRoad.receiveShadow = true;
         this.tagMesh(vRoad, 'Road', 'Terrain');
         this.scene.add(vRoad);
+
+        // Sidewalks along roads
+        const sidewalkWidth = 4;
+        const swMat = new THREE.MeshLambertMaterial({ map: this.createSidewalkTexture(worldW) });
+        const swPositions = [
+            { x: worldW / 2, z: hRoadZ - roadWidth / 2 - sidewalkWidth / 2, w: worldW, d: sidewalkWidth },
+            { x: worldW / 2, z: hRoadZ + roadWidth / 2 + sidewalkWidth / 2, w: worldW, d: sidewalkWidth },
+            { x: vRoadX - roadWidth / 2 - sidewalkWidth / 2, z: worldH / 2, w: sidewalkWidth, d: worldH },
+            { x: vRoadX + roadWidth / 2 + sidewalkWidth / 2, z: worldH / 2, w: sidewalkWidth, d: worldH },
+        ];
+        for (const sw of swPositions) {
+            const geo = new THREE.PlaneGeometry(sw.w, sw.d);
+            const mesh = new THREE.Mesh(geo, swMat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(sw.x, 0.02, sw.z);
+            mesh.receiveShadow = true;
+            this.tagMesh(mesh, 'Sidewalk', 'Terrain');
+            this.scene.add(mesh);
+        }
 
         // Buildings
         this.addBldg(100, 100, 120, 100, 0x95a5a6, 'City Hall');
@@ -237,47 +573,215 @@ export class ThreeGame {
         this.addBldg(1100, 100, 100, 80, 0xf39c12, 'Pizza');
         this.addBldg(500, 100, 100, 80, 0x9b59b6, 'Pet Shop');
 
-        // Trees
-        for(let i=0; i<60; i++) {
-            const tx = Math.random() * (MAP_WIDTH*TILE_SIZE);
-            const ty = Math.random() * (MAP_HEIGHT*TILE_SIZE);
-            if ((ty > 380 && ty < 520) || ty > 600) continue; // Avoid roads and housing
-            const group = new THREE.Group();
-            const trunk = new THREE.Mesh(new THREE.BoxGeometry(4, 10, 4), new THREE.MeshLambertMaterial({color: COLORS.WOOD}));
-            trunk.position.y = 5; group.add(trunk);
-            this.tagMesh(trunk, 'Tree', 'Nature');
-            
-            const leaves = new THREE.Mesh(new THREE.BoxGeometry(12, 12, 12), new THREE.MeshLambertMaterial({color: 0x228B22}));
-            leaves.position.y = 15; group.add(leaves);
-            this.tagMesh(leaves, 'Tree', 'Nature');
+        // Environment
+        this.initEnvironment(worldW, worldH, hRoadZ, vRoadX, roadWidth);
+    }
 
-            group.position.set(tx * WORLD_SCALE, 0, ty * WORLD_SCALE);
-            this.scene.add(group);
-            this.collidableMeshes.push(trunk); 
+    private initEnvironment(worldW: number, worldH: number, hRoadZ: number, vRoadX: number, roadWidth: number) {
+        // Trees (50 total: 60% oak, 25% pine, 15% bush)
+        for (let i = 0; i < 50; i++) {
+            const tx = Math.random() * (MAP_WIDTH * TILE_SIZE);
+            const ty = Math.random() * (MAP_HEIGHT * TILE_SIZE);
+            if ((ty > 380 && ty < 520) || ty > 600) continue;
+            const rand = Math.random();
+            const type = rand < 0.6 ? 'oak' : rand < 0.85 ? 'pine' : 'bush';
+            const tree = this.createTree(type as 'oak' | 'pine' | 'bush');
+            tree.position.set(tx * WORLD_SCALE, 0, ty * WORLD_SCALE);
+            this.scene.add(tree);
+        }
+
+        // Streetlights along horizontal road
+        let pointLightCount = 0;
+        const maxPointLights = 10;
+        for (let x = 20; x < worldW; x += STREETLIGHT_SPACING) {
+            for (const zOffset of [-1, 1]) {
+                const light = this.createStreetlight();
+                const z = hRoadZ + zOffset * (roadWidth / 2 + 3);
+                light.position.set(x, 0, z);
+                light.rotation.y = zOffset > 0 ? 0 : Math.PI;
+                this.scene.add(light);
+
+                if (pointLightCount < maxPointLights && x % (STREETLIGHT_SPACING * 4) === 20) {
+                    const pl = new THREE.PointLight(COLORS.LAMP_GLOW, 0.3, 30);
+                    pl.position.set(x + 3, 11, z);
+                    this.scene.add(pl);
+                    pointLightCount++;
+                }
+            }
+        }
+
+        // Streetlights along vertical road (skip intersection)
+        for (let z = 20; z < worldH; z += STREETLIGHT_SPACING) {
+            if (z > hRoadZ - roadWidth && z < hRoadZ + roadWidth) continue;
+            for (const xOffset of [-1, 1]) {
+                const light = this.createStreetlight();
+                const x = vRoadX + xOffset * (roadWidth / 2 + 3);
+                light.position.set(x, 0, z);
+                light.rotation.y = xOffset > 0 ? Math.PI / 2 : -Math.PI / 2;
+                this.scene.add(light);
+            }
+        }
+
+        // Benches along north sidewalk of horizontal road
+        for (let i = 0; i < 10; i++) {
+            const bench = this.createBench();
+            const bx = 30 + i * (worldW / 11);
+            if (Math.abs(bx - vRoadX) < roadWidth) continue;
+            bench.position.set(bx, 0, hRoadZ - roadWidth / 2 - 6);
+            this.scene.add(bench);
+        }
+
+        // Fences along Home Lot border (z = 600 * WORLD_SCALE = 120)
+        const fenceZ = 600 * WORLD_SCALE;
+        const sectionLen = 20;
+        const gapMin = vRoadX - roadWidth / 2 - 2;
+        const gapMax = vRoadX + roadWidth / 2 + 2;
+        for (let x = sectionLen / 2; x < worldW; x += sectionLen + 1) {
+            if (x > gapMin && x < gapMax) continue;
+            const fence = this.createFenceSection(sectionLen);
+            fence.position.set(x, 0, fenceZ);
+            this.scene.add(fence);
+        }
+
+        // Trash cans near intersections
+        const trashPositions = [
+            { x: vRoadX + roadWidth / 2 + 5, z: hRoadZ - roadWidth / 2 - 5 },
+            { x: vRoadX - roadWidth / 2 - 5, z: hRoadZ + roadWidth / 2 + 5 },
+            { x: vRoadX + roadWidth / 2 + 5, z: hRoadZ + roadWidth / 2 + 5 },
+            { x: 30, z: hRoadZ - roadWidth / 2 - 5 },
+            { x: worldW - 30, z: hRoadZ - roadWidth / 2 - 5 },
+            { x: vRoadX - roadWidth / 2 - 5, z: 30 },
+        ];
+        for (const pos of trashPositions) {
+            const tc = this.createTrashCan();
+            tc.position.set(pos.x, 0, pos.z);
+            this.scene.add(tc);
+        }
+
+        // Fire hydrants
+        const hydrantPositions = [
+            { x: vRoadX - roadWidth / 2 - 5, z: hRoadZ - roadWidth / 2 - 5 },
+            { x: vRoadX + roadWidth / 2 + 5, z: 50 },
+            { x: 60, z: hRoadZ + roadWidth / 2 + 5 },
+            { x: worldW - 60, z: hRoadZ + roadWidth / 2 + 5 },
+        ];
+        for (const pos of hydrantPositions) {
+            const fh = this.createFireHydrant();
+            fh.position.set(pos.x, 0, pos.z);
+            this.scene.add(fh);
+        }
+
+        // Ground detail: small flower clusters
+        for (let i = 0; i < 20; i++) {
+            const fx = Math.random() * (MAP_WIDTH * TILE_SIZE);
+            const fy = Math.random() * (MAP_HEIGHT * TILE_SIZE);
+            if ((fy > 380 && fy < 520) || fy > 600) continue;
+            const colors = [0xFF6B6B, 0xFFD93D, 0xFFFFFF, 0xFF69B4, 0xE8A0BF];
+            const cluster = new THREE.Group();
+            for (let j = 0; j < 3 + Math.floor(Math.random() * 3); j++) {
+                const flower = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.3, 4, 4),
+                    new THREE.MeshLambertMaterial({ color: colors[Math.floor(Math.random() * colors.length)] })
+                );
+                flower.position.set((Math.random() - 0.5) * 2, 0.3, (Math.random() - 0.5) * 2);
+                cluster.add(flower);
+            }
+            cluster.position.set(fx * WORLD_SCALE, 0, fy * WORLD_SCALE);
+            this.scene.add(cluster);
         }
     }
 
+    // ===== BUILDING CREATION =====
+
     addBldg(x: number, y: number, w: number, h: number, color: number, label: string) {
-        this.buildings.push({x,y,w,h});
+        this.buildings.push({x, y, w, h});
         const group = new THREE.Group();
-        const w3 = w * WORLD_SCALE; 
+        const w3 = w * WORLD_SCALE;
         const d3 = h * WORLD_SCALE;
         const h3 = 40;
-        
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w3, h3, d3), new THREE.MeshLambertMaterial({color}));
-        mesh.position.y = h3/2;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        group.add(mesh);
-        this.collidableMeshes.push(mesh);
 
-        // Label
+        // Invisible collision box (keeps raycasting/collision working)
+        const collisionMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(w3, h3, d3),
+            new THREE.MeshBasicMaterial({ visible: false })
+        );
+        collisionMesh.position.y = h3 / 2;
+        group.add(collisionMesh);
+        this.collidableMeshes.push(collisionMesh);
+
+        // Walls with window textures
+        const winCols = w3 > 22 ? 4 : 3;
+        const winRows = 4;
+        const sideCols = d3 > 18 ? 3 : 2;
+        const frontTex = this.createWindowTexture(color, winCols, winRows);
+        const sideTex = this.createWindowTexture(color, sideCols, winRows);
+
+        const wallFront = new THREE.Mesh(new THREE.PlaneGeometry(w3, h3), new THREE.MeshLambertMaterial({ map: frontTex }));
+        wallFront.position.set(0, h3 / 2, d3 / 2);
+        wallFront.castShadow = true;
+        wallFront.receiveShadow = true;
+        group.add(wallFront);
+
+        const wallBack = new THREE.Mesh(new THREE.PlaneGeometry(w3, h3), new THREE.MeshLambertMaterial({ map: frontTex.clone() }));
+        wallBack.position.set(0, h3 / 2, -d3 / 2);
+        wallBack.rotation.y = Math.PI;
+        wallBack.castShadow = true;
+        group.add(wallBack);
+
+        const wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(d3, h3), new THREE.MeshLambertMaterial({ map: sideTex }));
+        wallLeft.position.set(-w3 / 2, h3 / 2, 0);
+        wallLeft.rotation.y = Math.PI / 2;
+        wallLeft.castShadow = true;
+        group.add(wallLeft);
+
+        const wallRight = new THREE.Mesh(new THREE.PlaneGeometry(d3, h3), new THREE.MeshLambertMaterial({ map: sideTex.clone() }));
+        wallRight.position.set(w3 / 2, h3 / 2, 0);
+        wallRight.rotation.y = -Math.PI / 2;
+        wallRight.castShadow = true;
+        group.add(wallRight);
+
+        // Foundation strip
+        const foundation = new THREE.Mesh(
+            new THREE.BoxGeometry(w3 + 0.5, 1.5, d3 + 0.5),
+            new THREE.MeshLambertMaterial({ color: COLORS.FOUNDATION })
+        );
+        foundation.position.y = 0.75;
+        group.add(foundation);
+
+        // Cornice
+        const darkerColor = new THREE.Color(color).multiplyScalar(0.7);
+        const cornice = new THREE.Mesh(
+            new THREE.BoxGeometry(w3 + 0.5, 0.5, d3 + 0.5),
+            new THREE.MeshLambertMaterial({ color: darkerColor })
+        );
+        cornice.position.y = h3 - 0.25;
+        group.add(cornice);
+
+        // Door on front face
+        const door = new THREE.Mesh(
+            new THREE.BoxGeometry(3, 6, 0.3),
+            new THREE.MeshLambertMaterial({ color: COLORS.DOOR })
+        );
+        door.position.set(0, 3, d3 / 2 + 0.15);
+        group.add(door);
+
+        const knob = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 6, 6),
+            new THREE.MeshLambertMaterial({ color: COLORS.DOOR_KNOB })
+        );
+        knob.position.set(1, 3, d3 / 2 + 0.3);
+        group.add(knob);
+
+        // Roof (unique per building type)
+        this.addBuildingRoof(group, w3, d3, h3, color, label);
+
+        // Label sprite
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        if(ctx) {
+        if (ctx) {
             canvas.width = 256; canvas.height = 64;
-            ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,256,64);
-            ctx.fillStyle = 'white'; ctx.font = 'bold 40px VT323'; 
+            ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, 256, 64);
+            ctx.fillStyle = 'white'; ctx.font = 'bold 40px VT323';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(label, 128, 32);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
@@ -285,14 +789,129 @@ export class ThreeGame {
             sprite.scale.set(30, 7.5, 1);
             group.add(sprite);
         }
-        
-        // Tag all children for hover
-        group.children.forEach(c => {
+
+        // Tag all mesh children for hover
+        group.traverse(c => {
             if (c instanceof THREE.Mesh) this.tagMesh(c, label, 'Building');
         });
 
-        group.position.set((x + w/2) * WORLD_SCALE, 0, (y + h/2) * WORLD_SCALE);
+        group.position.set((x + w / 2) * WORLD_SCALE, 0, (y + h / 2) * WORLD_SCALE);
         this.scene.add(group);
+    }
+
+    private addBuildingRoof(group: THREE.Group, w3: number, d3: number, h3: number, color: number, label: string) {
+        if (label === 'City Hall') {
+            // Flat roof with parapet
+            const cap = new THREE.Mesh(
+                new THREE.BoxGeometry(w3 + 1, 1, d3 + 1),
+                new THREE.MeshLambertMaterial({ color: 0x7f8c8d })
+            );
+            cap.position.y = h3 + 0.5;
+            group.add(cap);
+
+            const parapetMat = new THREE.MeshLambertMaterial({ color: 0x7f8c8d });
+            const parapets = [
+                { geo: [w3 + 1, 2, 0.5] as [number, number, number], pos: [0, h3 + 1, (d3 + 1) / 2] },
+                { geo: [w3 + 1, 2, 0.5] as [number, number, number], pos: [0, h3 + 1, -(d3 + 1) / 2] },
+                { geo: [0.5, 2, d3 + 1] as [number, number, number], pos: [(w3 + 1) / 2, h3 + 1, 0] },
+                { geo: [0.5, 2, d3 + 1] as [number, number, number], pos: [-(w3 + 1) / 2, h3 + 1, 0] },
+            ];
+            for (const p of parapets) {
+                const m = new THREE.Mesh(new THREE.BoxGeometry(...p.geo), parapetMat);
+                m.position.set(p.pos[0], p.pos[1], p.pos[2]);
+                group.add(m);
+            }
+
+            // Flagpole
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 6, 8), new THREE.MeshLambertMaterial({ color: COLORS.METAL }));
+            pole.position.set(w3 / 3, h3 + 4, 0);
+            group.add(pole);
+
+            const flag = new THREE.Mesh(new THREE.PlaneGeometry(3, 2), new THREE.MeshLambertMaterial({ color: 0xe74c3c, side: THREE.DoubleSide }));
+            flag.position.set(w3 / 3 + 1.5, h3 + 6, 0);
+            group.add(flag);
+
+        } else if (label === 'Burgers') {
+            // Peaked/gable roof
+            const roofMat = new THREE.MeshLambertMaterial({ color: 0x8B0000, side: THREE.DoubleSide });
+            const roofLeft = new THREE.Mesh(new THREE.PlaneGeometry(w3 * 0.6, d3 + 1), roofMat);
+            roofLeft.position.set(-w3 * 0.15, h3 + 3, 0);
+            roofLeft.rotation.z = 0.5;
+            roofLeft.castShadow = true;
+            group.add(roofLeft);
+
+            const roofRight = new THREE.Mesh(new THREE.PlaneGeometry(w3 * 0.6, d3 + 1), roofMat);
+            roofRight.position.set(w3 * 0.15, h3 + 3, 0);
+            roofRight.rotation.z = -0.5;
+            roofRight.castShadow = true;
+            group.add(roofRight);
+
+            // Chimney
+            const chimney = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), new THREE.MeshLambertMaterial({ color: 0x666666 }));
+            chimney.position.set(w3 / 4, h3 + 2, 0);
+            group.add(chimney);
+
+        } else if (label === 'Pizza') {
+            // Flat roof cap
+            const cap = new THREE.Mesh(
+                new THREE.BoxGeometry(w3 + 0.5, 0.5, d3 + 0.5),
+                new THREE.MeshLambertMaterial({ color: 0xd4a437 })
+            );
+            cap.position.y = h3 + 0.25;
+            group.add(cap);
+
+            // Striped awning
+            const awningCanvas = document.createElement('canvas');
+            awningCanvas.width = 128; awningCanvas.height = 32;
+            const actx = awningCanvas.getContext('2d')!;
+            for (let i = 0; i < 16; i++) {
+                actx.fillStyle = i % 2 === 0 ? '#e74c3c' : '#ffffff';
+                actx.fillRect(i * 8, 0, 8, 32);
+            }
+            const awningTex = new THREE.CanvasTexture(awningCanvas);
+            awningTex.magFilter = THREE.NearestFilter;
+
+            const awning = new THREE.Mesh(
+                new THREE.BoxGeometry(w3 + 4, 0.5, 3),
+                new THREE.MeshLambertMaterial({ map: awningTex })
+            );
+            awning.position.set(0, h3 * 0.4, d3 / 2 + 1.5);
+            group.add(awning);
+
+        } else if (label === 'Pet Shop') {
+            // Peaked roof
+            const roofMat = new THREE.MeshLambertMaterial({ color: 0x6c3483, side: THREE.DoubleSide });
+            const roofLeft = new THREE.Mesh(new THREE.PlaneGeometry(w3 * 0.6, d3 + 1), roofMat);
+            roofLeft.position.set(-w3 * 0.15, h3 + 3, 0);
+            roofLeft.rotation.z = 0.5;
+            roofLeft.castShadow = true;
+            group.add(roofLeft);
+
+            const roofRight = new THREE.Mesh(new THREE.PlaneGeometry(w3 * 0.6, d3 + 1), roofMat);
+            roofRight.position.set(w3 * 0.15, h3 + 3, 0);
+            roofRight.rotation.z = -0.5;
+            roofRight.castShadow = true;
+            group.add(roofRight);
+
+            // Paw print sign
+            const pawCanvas = document.createElement('canvas');
+            pawCanvas.width = 64; pawCanvas.height = 64;
+            const pctx = pawCanvas.getContext('2d')!;
+            pctx.fillStyle = '#ffffff';
+            pctx.fillRect(0, 0, 64, 64);
+            pctx.fillStyle = '#9b59b6';
+            pctx.beginPath(); pctx.arc(32, 38, 12, 0, Math.PI * 2); pctx.fill();
+            pctx.beginPath(); pctx.arc(20, 22, 6, 0, Math.PI * 2); pctx.fill();
+            pctx.beginPath(); pctx.arc(32, 18, 6, 0, Math.PI * 2); pctx.fill();
+            pctx.beginPath(); pctx.arc(44, 22, 6, 0, Math.PI * 2); pctx.fill();
+
+            const pawSign = new THREE.Mesh(
+                new THREE.PlaneGeometry(3, 3),
+                new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(pawCanvas) })
+            );
+            pawSign.position.set(0, h3 * 0.75, d3 / 2 + 0.2);
+            group.add(pawSign);
+        }
     }
 
     createStickFigureMesh(cfg: GameConfig): StickFigureGroup {
