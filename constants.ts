@@ -2,6 +2,7 @@ export const TILE_SIZE = 40;
 export const WORLD_SCALE = 0.2;
 export const MAP_WIDTH = 100;
 export const MAP_HEIGHT = 100;
+export const PLAYER_SCALE = 0.3;
 
 export const COLORS = {
   WOOD: 0x8B4513,

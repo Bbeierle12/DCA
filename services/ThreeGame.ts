@@ -1,6 +1,6 @@
 
 import * as THREE from 'three';
-import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS, STREETLIGHT_SPACING } from '../constants';
+import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS, STREETLIGHT_SPACING, PLAYER_SCALE } from '../constants';
 import { GameConfig, HouseBlock, PlayerData } from '../types';
 import { updatePlayerInDb, subscribeToPlayers, subscribeToHouses, addHouseBlock, removeHouseBlock } from './firebase';
 import { createStickFigure, attachWeapon, StickFigureGroup } from './StickFigure';
@@ -81,13 +81,13 @@ export class ThreeGame {
     floorTexture: THREE.Texture | null = null;
     
     // Camera & Mouse
-    cameraState = { 
-        theta: 0, 
-        phi: Math.PI / 4, 
-        radius: 60, 
-        currentRadius: 60,
-        minRadius: 20,
-        maxRadius: 150
+    cameraState = {
+        theta: 0,
+        phi: Math.PI / 4,
+        radius: 25,
+        currentRadius: 25,
+        minRadius: 8,
+        maxRadius: 60
     };
     mouseState = { isDown: false, button: -1 };
     
@@ -148,10 +148,10 @@ export class ThreeGame {
         dirLight.position.set(100, 200, 100);
         dirLight.castShadow = true;
         // Optimization for shadows
-        dirLight.shadow.camera.top = 100;
-        dirLight.shadow.camera.bottom = -100;
-        dirLight.shadow.camera.left = -100;
-        dirLight.shadow.camera.right = 100;
+        dirLight.shadow.camera.top = 60;
+        dirLight.shadow.camera.bottom = -60;
+        dirLight.shadow.camera.left = -60;
+        dirLight.shadow.camera.right = 60;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
         this.scene.add(dirLight);
@@ -165,6 +165,7 @@ export class ThreeGame {
 
         // Player (Stick Figure)
         this.playerGroup = this.createStickFigureMesh(config);
+        this.playerGroup.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
         this.scene.add(this.playerGroup);
 
         // Builder Highlight
@@ -567,11 +568,7 @@ export class ThreeGame {
             this.scene.add(mesh);
         }
 
-        // Buildings
-        this.addBldg(100, 100, 120, 100, 0x95a5a6, 'City Hall');
-        this.addBldg(900, 100, 100, 80, 0xe74c3c, 'Burgers');
-        this.addBldg(1100, 100, 100, 80, 0xf39c12, 'Pizza');
-        this.addBldg(500, 100, 100, 80, 0x9b59b6, 'Pet Shop');
+        // Buildings (temporarily removed for landscape/road design)
 
         // Environment
         this.initEnvironment(worldW, worldH, hRoadZ, vRoadX, roadWidth);
@@ -693,12 +690,12 @@ export class ThreeGame {
 
     // ===== BUILDING CREATION =====
 
-    addBldg(x: number, y: number, w: number, h: number, color: number, label: string) {
+    addBldg(x: number, y: number, w: number, h: number, color: number, label: string, height: number = 40) {
         this.buildings.push({x, y, w, h});
         const group = new THREE.Group();
         const w3 = w * WORLD_SCALE;
         const d3 = h * WORLD_SCALE;
-        const h3 = 40;
+        const h3 = height;
 
         // Invisible collision box (keeps raycasting/collision working)
         const collisionMesh = new THREE.Mesh(
@@ -785,8 +782,8 @@ export class ThreeGame {
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(label, 128, 32);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.position.set(0, h3 + 15, 0);
-            sprite.scale.set(30, 7.5, 1);
+            sprite.position.set(0, h3 + 8, 0);
+            sprite.scale.set(20, 5, 1);
             group.add(sprite);
         }
 
@@ -1068,6 +1065,7 @@ export class ThreeGame {
     updateOtherPlayer(id: string, data: PlayerData) {
         if (!this.otherPlayers[id]) {
             const mesh = this.createStickFigureMesh(data as GameConfig);
+            mesh.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
             this.scene.add(mesh);
             this.otherPlayers[id] = {
                 mesh,
@@ -1090,6 +1088,7 @@ export class ThreeGame {
             if (p.data.skin !== data.skin || p.data.pet !== data.pet || p.data.shirt !== data.shirt) {
                 this.scene.remove(p.mesh);
                 p.mesh = this.createStickFigureMesh(data as GameConfig);
+                p.mesh.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
                 this.scene.add(p.mesh);
                 p.animatorState = createAnimatorState();
             }
@@ -1733,7 +1732,7 @@ export class ThreeGame {
         // Smooth Zoom
         this.cameraState.currentRadius += (this.cameraState.radius - this.cameraState.currentRadius) * 0.1;
 
-        const target = this.playerGroup.position.clone().add(new THREE.Vector3(0, 10, 0));
+        const target = this.playerGroup.position.clone().add(new THREE.Vector3(0, 3, 0));
         
         // Calculate offset based on spherical coords
         const x = this.cameraState.currentRadius * Math.sin(this.cameraState.phi) * Math.sin(this.cameraState.theta);
