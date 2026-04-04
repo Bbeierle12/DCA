@@ -40,6 +40,13 @@ export class ThreeGame {
     cameraSensitivity: number = 1.0;
     showOtherPlayersEnabled: boolean = true;
 
+    // Free camera mode (toggle with F9)
+    freeCameraEnabled: boolean = false;
+    freeCameraPos = new THREE.Vector3(400, 200, 400);
+    freeCameraYaw: number = 0;      // horizontal rotation
+    freeCameraPitch: number = -Math.PI / 2; // looking straight down by default
+    freeCameraSpeed: number = 200;   // units per second
+
     // References for settings that affect Three.js objects
     private directionalLight: THREE.DirectionalLight | null = null;
 
@@ -584,7 +591,14 @@ export class ThreeGame {
             }
 
             // Still render
-            this.updateCamera();
+            this.updateCamera(deltaTime);
+            this.renderer.render(this.scene, this.camera);
+            return;
+        }
+
+        // In free camera mode, only update camera and render -- skip player logic
+        if (this.freeCameraEnabled) {
+            this.updateCamera(deltaTime);
             this.renderer.render(this.scene, this.camera);
             return;
         }
@@ -817,7 +831,7 @@ export class ThreeGame {
             this.buildHighlight.visible = false;
         }
 
-        this.updateCamera();
+        this.updateCamera(deltaTime);
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -1023,32 +1037,87 @@ export class ThreeGame {
         return this.combatState.isDead;
     }
 
-    updateCamera() {
+    updateCamera(deltaTime?: number) {
+        if (this.freeCameraEnabled) {
+            this.updateFreeCamera(deltaTime || 0.016);
+            return;
+        }
+
         // Smooth Zoom
         this.cameraState.currentRadius += (this.cameraState.radius - this.cameraState.currentRadius) * 0.1;
 
         const target = this.playerGroup.position.clone().add(new THREE.Vector3(0, 3, 0));
-        
+
         // Calculate offset based on spherical coords
         const x = this.cameraState.currentRadius * Math.sin(this.cameraState.phi) * Math.sin(this.cameraState.theta);
         const y = this.cameraState.currentRadius * Math.cos(this.cameraState.phi);
         const z = this.cameraState.currentRadius * Math.sin(this.cameraState.phi) * Math.cos(this.cameraState.theta);
         const offset = new THREE.Vector3(x, y, z);
-        
+
         // Raycasting for camera occlusion
         const direction = offset.clone().normalize();
         this.raycaster.set(target, direction);
         // Check collision with buildings/ground/walls
         const intersects = this.raycaster.intersectObjects(this.collidableMeshes);
-        
+
         let finalOffset = offset;
         if (intersects.length > 0 && intersects[0].distance < offset.length()) {
              // Zoom in if blocked
              finalOffset = direction.multiplyScalar(intersects[0].distance - 2);
         }
-        
+
         this.camera.position.lerp(target.clone().add(finalOffset), 0.1);
         this.camera.lookAt(target);
+    }
+
+    private updateFreeCamera(deltaTime: number) {
+        const speed = this.freeCameraSpeed * deltaTime;
+
+        // Forward/back/strafe based on yaw (horizontal only)
+        const forward = new THREE.Vector3(
+            -Math.sin(this.freeCameraYaw),
+            0,
+            -Math.cos(this.freeCameraYaw)
+        );
+        const right = new THREE.Vector3(
+            -Math.cos(this.freeCameraYaw),
+            0,
+            Math.sin(this.freeCameraYaw)
+        );
+
+        if (this.keys['w'] || this.keys['ArrowUp']) this.freeCameraPos.add(forward.clone().multiplyScalar(speed));
+        if (this.keys['s'] || this.keys['ArrowDown']) this.freeCameraPos.add(forward.clone().multiplyScalar(-speed));
+        if (this.keys['a'] || this.keys['ArrowLeft']) this.freeCameraPos.add(right.clone().multiplyScalar(-speed));
+        if (this.keys['d'] || this.keys['ArrowRight']) this.freeCameraPos.add(right.clone().multiplyScalar(speed));
+
+        // Vertical movement
+        if (this.keys['e'] || this.keys[' ']) this.freeCameraPos.y += speed;
+        if (this.keys['q'] || this.keys['Shift']) this.freeCameraPos.y -= speed;
+
+        // Clamp height
+        this.freeCameraPos.y = Math.max(1, Math.min(800, this.freeCameraPos.y));
+
+        // Apply position and look direction
+        this.camera.position.copy(this.freeCameraPos);
+        const lookTarget = this.freeCameraPos.clone().add(new THREE.Vector3(
+            -Math.sin(this.freeCameraYaw) * Math.cos(this.freeCameraPitch),
+            Math.sin(this.freeCameraPitch),
+            -Math.cos(this.freeCameraYaw) * Math.cos(this.freeCameraPitch)
+        ));
+        this.camera.lookAt(lookTarget);
+    }
+
+    toggleFreeCamera() {
+        this.freeCameraEnabled = !this.freeCameraEnabled;
+        if (this.freeCameraEnabled) {
+            // Initialize free camera at current camera position
+            this.freeCameraPos.copy(this.camera.position);
+            // Extract yaw from current look direction
+            const dir = new THREE.Vector3();
+            this.camera.getWorldDirection(dir);
+            this.freeCameraYaw = Math.atan2(-dir.x, -dir.z);
+            this.freeCameraPitch = Math.asin(dir.y);
+        }
     }
 
     // Main Interaction Handler (called from UI or Keypress)
@@ -1158,10 +1227,18 @@ export class ThreeGame {
 
         if (this.mouseState.isDown && this.mouseState.button === 2) {
             const sensitivity = 0.005 * this.cameraSensitivity;
-            this.cameraState.theta -= e.movementX * sensitivity;
-            const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
-            this.cameraState.phi -= yMovement * sensitivity;
-            this.cameraState.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraState.phi));
+
+            if (this.freeCameraEnabled) {
+                this.freeCameraYaw -= e.movementX * sensitivity;
+                const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
+                this.freeCameraPitch += yMovement * sensitivity;
+                this.freeCameraPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.freeCameraPitch));
+            } else {
+                this.cameraState.theta -= e.movementX * sensitivity;
+                const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
+                this.cameraState.phi -= yMovement * sensitivity;
+                this.cameraState.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraState.phi));
+            }
         }
 
         // Build Cursor Raycast
@@ -1212,11 +1289,26 @@ export class ThreeGame {
     }
 
     onWheel = (e: WheelEvent) => {
-        this.adjustZoom(e.deltaY * 0.1);
+        if (this.freeCameraEnabled) {
+            // Scroll adjusts free camera speed
+            this.freeCameraSpeed = Math.max(20, Math.min(2000, this.freeCameraSpeed * (1 - e.deltaY * 0.001)));
+        } else {
+            this.adjustZoom(e.deltaY * 0.1);
+        }
     }
 
     onKeyDown = (e: KeyboardEvent) => {
         this.keys[e.key] = true;
+
+        // Free camera toggle
+        if (e.key === 'F9') {
+            e.preventDefault();
+            this.toggleFreeCamera();
+            return;
+        }
+
+        // Skip game controls in free camera mode
+        if (this.freeCameraEnabled) return;
 
         // Attack controls
         const key = e.key.toLowerCase();
