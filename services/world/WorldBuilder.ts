@@ -1,14 +1,15 @@
 import * as THREE from 'three';
-import { WorldConfig, createDefaultWorldConfig } from './WorldConfig';
-import { ZoneMap } from './ZoneMap';
+import { WorldConfig, createLondonWorldConfig } from './WorldConfigV2';
+import { ZoneMapV2 } from './ZoneMapV2';
 import { TextureFactory } from './TextureFactory';
-import { RoadBuilder } from './RoadBuilder';
-import { IntersectionBuilder } from './IntersectionBuilder';
+import { PathRoadBuilder } from './PathRoadBuilder';
+import { RoundaboutBuilder } from './RoundaboutBuilder';
+import { IntersectionBuilderV2 } from './IntersectionBuilderV2';
 import { LandscapeBuilder } from './LandscapeBuilder';
 import { FurnitureBuilder } from './FurnitureBuilder';
 
 export interface WorldBuildResult {
-    zoneMap: ZoneMap;
+    zoneMap: ZoneMapV2;
     collidableMeshes: THREE.Object3D[];
 }
 
@@ -16,22 +17,24 @@ export class WorldBuilder {
     private config: WorldConfig;
 
     constructor(config?: WorldConfig) {
-        this.config = config || createDefaultWorldConfig();
+        this.config = config || createLondonWorldConfig();
     }
 
     build(scene: THREE.Scene): WorldBuildResult {
-        const zoneMap = new ZoneMap(this.config);
+        const zoneMap = new ZoneMapV2(this.config);
         const textures = new TextureFactory(this.config);
-        const roads = new RoadBuilder(this.config, textures);
-        const intersection = new IntersectionBuilder(this.config, textures);
+        const roads = new PathRoadBuilder(this.config, textures);
+        const intersections = new IntersectionBuilderV2(this.config, textures);
+        const roundabouts = new RoundaboutBuilder(this.config, textures);
         const landscape = new LandscapeBuilder(this.config, zoneMap);
         const furniture = new FurnitureBuilder(this.config, zoneMap);
 
         // Phases execute in strict order
-        roads.build(scene);           // Ground + road cross-sections
-        intersection.build(scene);    // Crosswalks, stop bars, signs, ramps
-        landscape.buildEdges(scene);  // Formal street trees
-        furniture.build(scene);       // Lights, benches, hydrants, trash, fences
+        roads.build(scene);              // Ground + road cross-sections
+        intersections.build(scene);      // Crosswalks, stop bars, traffic lights
+        roundabouts.build(scene);        // Roundabout geometry + yield signs
+        landscape.buildEdges(scene);     // Formal street trees
+        furniture.build(scene);          // Lights, benches, hydrants, London props
         landscape.buildBackground(scene); // Open area clusters, perimeter, flowers
 
         // Collect collidable meshes (ground for raycasting)

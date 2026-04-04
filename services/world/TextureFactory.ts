@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WorldConfig, RoadConfig } from './WorldConfig';
+import { WorldConfig, RoadType } from './WorldConfigV2';
 
 export class TextureFactory {
     private config: WorldConfig;
@@ -60,47 +60,52 @@ export class TextureFactory {
         return tex;
     }
 
-    createRoadTexture(road: RoadConfig, length: number): THREE.CanvasTexture {
+    /**
+     * Create a plain asphalt texture for UV-mapped road segments.
+     * Lane markings are rendered as separate geometry by PathRoadBuilder,
+     * so this texture is just the asphalt surface.
+     */
+    createSegmentRoadTexture(roadType: RoadType, segmentLength: number): THREE.CanvasTexture {
         const canvas = document.createElement('canvas');
-        canvas.width = 256; canvas.height = 64;
+        canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d')!;
 
-        // Base asphalt
-        ctx.fillStyle = '#444444';
-        ctx.fillRect(0, 0, 256, 64);
+        // Base asphalt - darker for main roads
+        const baseGray = roadType === 'lane' ? 72 : roadType === 'secondary' ? 66 : 60;
+        ctx.fillStyle = `rgb(${baseGray},${baseGray},${baseGray})`;
+        ctx.fillRect(0, 0, 128, 128);
 
         // Asphalt texture noise
-        for (let i = 0; i < 300; i++) {
-            const gray = 50 + Math.floor(Math.random() * 30);
+        for (let i = 0; i < 400; i++) {
+            const gray = baseGray - 10 + Math.floor(Math.random() * 20);
             ctx.fillStyle = `rgb(${gray},${gray},${gray})`;
-            ctx.fillRect(Math.random() * 256, Math.random() * 64, 1 + Math.random(), 1 + Math.random());
+            ctx.fillRect(Math.random() * 128, Math.random() * 128, 1 + Math.random(), 1 + Math.random());
         }
-
-        // Center line dashes (yellow for main, white for secondary)
-        const centerY = 32;
-        if (road.type === 'main') {
-            // Double yellow center line
-            ctx.fillStyle = '#CCAA00';
-            for (let i = 0; i < 16; i++) {
-                ctx.fillRect(i * 16 + 2, centerY - 3, 12, 2);
-                ctx.fillRect(i * 16 + 2, centerY + 1, 12, 2);
-            }
-        } else {
-            // Dashed white center line
-            ctx.fillStyle = '#CCCCCC';
-            for (let i = 0; i < 12; i++) {
-                ctx.fillRect(i * 22 + 2, centerY - 1, 14, 2);
-            }
-        }
-
-        // Edge lines (white)
-        ctx.fillStyle = '#888888';
-        ctx.fillRect(0, 0, 256, 1);
-        ctx.fillRect(0, 63, 256, 1);
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(Math.floor(length / 12), 1);
+        tex.magFilter = THREE.NearestFilter;
+        return tex;
+    }
+
+    /** Create a roundabout asphalt texture (circular tiling) */
+    createRoundaboutTexture(): THREE.CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 128;
+        const ctx = canvas.getContext('2d')!;
+
+        ctx.fillStyle = '#3C3C3C';
+        ctx.fillRect(0, 0, 128, 128);
+
+        for (let i = 0; i < 500; i++) {
+            const gray = 50 + Math.floor(Math.random() * 25);
+            ctx.fillStyle = `rgb(${gray},${gray},${gray})`;
+            ctx.fillRect(Math.random() * 128, Math.random() * 128, 1 + Math.random(), 1 + Math.random());
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(4, 4);
         tex.magFilter = THREE.NearestFilter;
         return tex;
     }

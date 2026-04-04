@@ -1,19 +1,21 @@
 import * as THREE from 'three';
-import { WorldConfig } from './WorldConfig';
-import { ZoneMap } from './ZoneMap';
-import { ZoneType } from './WorldConfig';
+import { WorldConfig, ZoneType } from './WorldConfigV2';
+import { ZoneMapV2 } from './ZoneMapV2';
+import {
+    polylineLength, samplePolyline, perpCW, add, scale,
+} from './RoadGeometry';
 
 export class LandscapeBuilder {
     private config: WorldConfig;
-    private zoneMap: ZoneMap;
+    private zoneMap: ZoneMapV2;
 
-    constructor(config: WorldConfig, zoneMap: ZoneMap) {
+    constructor(config: WorldConfig, zoneMap: ZoneMapV2) {
         this.config = config;
         this.zoneMap = zoneMap;
     }
 
     /**
-     * Phase 5: Formal street-edge landscape — trees in furnishing strips.
+     * Formal street-edge landscape -- trees in furnishing strips along road paths.
      */
     buildEdges(scene: THREE.Scene): void {
         for (let i = 0; i < this.config.roads.length; i++) {
@@ -22,7 +24,7 @@ export class LandscapeBuilder {
     }
 
     /**
-     * Phase 7: Background landscape fill — clusters in open areas, perimeter bands.
+     * Background landscape fill -- clusters in open areas, perimeter bands.
      */
     buildBackground(scene: THREE.Scene): void {
         this.buildOpenLandscapeClusters(scene);
@@ -30,40 +32,39 @@ export class LandscapeBuilder {
         this.buildFlowerBeds(scene);
     }
 
-    private buildFormalTreeRow(scene: THREE.Scene, roadIndex: number) {
+    private buildFormalTreeRow(scene: THREE.Scene, roadIndex: number): void {
         const road = this.config.roads[roadIndex];
-        const ws = this.config.worldScale;
-        const center = road.centerline * ws;
         const halfC = road.carriagewayWidth / 2;
         const curbW = road.curbWidth;
         const furnW = road.furnishingStripWidth;
         const spacing = this.config.landscape.formalTreeSpacing;
-        const species = road.type === 'main'
+        const species = (road.type === 'main' || road.type === 'boulevard')
             ? this.config.landscape.mainStreetSpecies
             : this.config.landscape.secondaryStreetSpecies;
 
-        const isH = road.direction === 'horizontal';
-        const length = isH ? this.config.worldWidth : this.config.worldHeight;
+        const totalLen = polylineLength(road.path);
+        const offset = halfC + curbW + furnW / 2;
 
         for (const side of [-1, 1]) {
-            const stripCenter = center + side * (halfC + curbW + furnW / 2);
+            for (let d = spacing / 2; d < totalLen; d += spacing) {
+                const sample = samplePolyline(road.path, d);
+                if (!sample) continue;
 
-            for (let t = spacing / 2; t < length; t += spacing) {
-                const x = isH ? t : stripCenter;
-                const z = isH ? stripCenter : t;
+                const perp = perpCW(sample.direction);
+                const pos = add(sample.point, scale(perp, side * offset));
 
                 // Skip if in sight triangle or near intersection
-                if (this.zoneMap.isInZone(x, z, ZoneType.SIGHT_TRIANGLE)) continue;
-                if (this.zoneMap.isNearIntersection(x, z, this.config.landscape.sightTriangleClearance)) continue;
+                if (this.zoneMap.isInZone(pos.x, pos.z, ZoneType.SIGHT_TRIANGLE)) continue;
+                if (this.zoneMap.isNearIntersection(pos.x, pos.z, this.config.landscape.sightTriangleClearance)) continue;
 
                 const tree = this.createTree(species);
-                tree.position.set(x, 0, z);
+                tree.position.set(pos.x, 0, pos.z);
                 scene.add(tree);
             }
         }
     }
 
-    private buildOpenLandscapeClusters(scene: THREE.Scene) {
+    private buildOpenLandscapeClusters(scene: THREE.Scene): void {
         const { worldWidth, worldHeight } = this.config;
         const density = this.config.landscape.clusterDensity;
         const areaUnits = (worldWidth * worldHeight) / (100 * 100);
@@ -76,18 +77,13 @@ export class LandscapeBuilder {
             const zone = this.zoneMap.getZone(cx, cz);
             if (zone !== ZoneType.OPEN_LANDSCAPE) continue;
 
-            // Skip home lot area
-            if (cz > this.config.homeLotBoundaryY * this.config.worldScale) continue;
-
             // Place a cluster of 2-5 trees
             const count = 2 + Math.floor(Math.random() * 4);
             for (let j = 0; j < count; j++) {
                 const ox = cx + (Math.random() - 0.5) * 12;
                 const oz = cz + (Math.random() - 0.5) * 12;
 
-                // Re-check zone for each tree in cluster
                 if (this.zoneMap.getZone(ox, oz) !== ZoneType.OPEN_LANDSCAPE) continue;
-                if (oz > this.config.homeLotBoundaryY * this.config.worldScale) continue;
 
                 const rand = Math.random();
                 const type = rand < 0.5 ? 'oak' : rand < 0.8 ? 'pine' : 'bush';
@@ -98,12 +94,11 @@ export class LandscapeBuilder {
         }
     }
 
-    private buildPerimeterBand(scene: THREE.Scene) {
+    private buildPerimeterBand(scene: THREE.Scene): void {
         const bandW = this.config.landscape.perimeterTreeBandWidth;
         const { worldWidth, worldHeight } = this.config;
         const spacing = 8;
 
-        // Place trees along all 4 edges
         for (let x = spacing / 2; x < worldWidth; x += spacing + Math.random() * 4) {
             for (const z of [bandW * Math.random(), worldHeight - bandW * Math.random()]) {
                 if (this.zoneMap.getZone(x, z) !== ZoneType.PERIMETER) continue;
@@ -124,7 +119,7 @@ export class LandscapeBuilder {
         }
     }
 
-    private buildFlowerBeds(scene: THREE.Scene) {
+    private buildFlowerBeds(scene: THREE.Scene): void {
         const { worldWidth, worldHeight } = this.config;
         const colors = [0xFF6B6B, 0xFFD93D, 0xFFFFFF, 0xFF69B4, 0xE8A0BF];
 
@@ -134,7 +129,6 @@ export class LandscapeBuilder {
 
             const zone = this.zoneMap.getZone(fx, fz);
             if (zone !== ZoneType.OPEN_LANDSCAPE && zone !== ZoneType.FURNISHING_STRIP) continue;
-            if (fz > this.config.homeLotBoundaryY * this.config.worldScale) continue;
 
             const cluster = new THREE.Group();
             for (let j = 0; j < 3 + Math.floor(Math.random() * 3); j++) {
@@ -150,7 +144,7 @@ export class LandscapeBuilder {
         }
     }
 
-    // --- Tree factory methods (extracted from ThreeGame) ---
+    // ===== TREE FACTORY =====
 
     createTree(type: 'oak' | 'pine' | 'bush'): THREE.Group {
         const group = new THREE.Group();

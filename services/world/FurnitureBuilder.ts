@@ -1,12 +1,15 @@
 import * as THREE from 'three';
-import { WorldConfig, ZoneType } from './WorldConfig';
-import { ZoneMap } from './ZoneMap';
+import { WorldConfig, ZoneType } from './WorldConfigV2';
+import { ZoneMapV2 } from './ZoneMapV2';
+import {
+    polylineLength, samplePolyline, perpCW, add, scale,
+} from './RoadGeometry';
 
 export class FurnitureBuilder {
     private config: WorldConfig;
-    private zoneMap: ZoneMap;
+    private zoneMap: ZoneMapV2;
 
-    constructor(config: WorldConfig, zoneMap: ZoneMap) {
+    constructor(config: WorldConfig, zoneMap: ZoneMapV2) {
         this.config = config;
         this.zoneMap = zoneMap;
     }
@@ -16,171 +19,206 @@ export class FurnitureBuilder {
         this.buildBenches(scene);
         this.buildTrashCans(scene);
         this.buildHydrants(scene);
-        this.buildFences(scene);
+        this.buildBollards(scene);
+        this.buildPhoneBoxes(scene);
+        this.buildPillarBoxes(scene);
     }
 
-    private buildStreetlights(scene: THREE.Scene) {
+    // ===== PATH-BASED PLACEMENT HELPERS =====
+
+    /**
+     * Walk along a road's polyline path at regular intervals,
+     * placing items at a perpendicular offset from the centerline.
+     */
+    private placeAlongRoad(
+        roadIndex: number,
+        spacing: number,
+        side: number,        // -1 = left, 1 = right
+        callback: (x: number, z: number, angle: number) => void
+    ): void {
+        const road = this.config.roads[roadIndex];
+        const halfC = road.carriagewayWidth / 2;
+        const curbW = road.curbWidth;
+        const furnW = road.furnishingStripWidth;
+        const offset = side * (halfC + curbW + furnW / 2);
+        const totalLen = polylineLength(road.path);
+        const clearance = this.config.furniture.intersectionClearance;
+
+        for (let d = spacing / 2; d < totalLen; d += spacing) {
+            const sample = samplePolyline(road.path, d);
+            if (!sample) continue;
+
+            const perp = perpCW(sample.direction);
+            const pos = add(sample.point, scale(perp, offset));
+
+            // Skip near intersections and in sight triangles
+            if (this.zoneMap.isNearIntersection(pos.x, pos.z, clearance)) continue;
+            if (this.zoneMap.isInZone(pos.x, pos.z, ZoneType.SIGHT_TRIANGLE)) continue;
+
+            const angle = Math.atan2(sample.direction.z, sample.direction.x);
+            callback(pos.x, pos.z, angle);
+        }
+    }
+
+    // ===== STREETLIGHTS =====
+
+    private buildStreetlights(scene: THREE.Scene): void {
         const spacing = this.config.furniture.streetlightSpacing;
         const maxLights = this.config.furniture.maxPointLights;
-        const clearance = this.config.furniture.intersectionClearance;
         let pointLightCount = 0;
+        let lightInterval = 0;
 
         for (let i = 0; i < this.config.roads.length; i++) {
-            const road = this.config.roads[i];
-            const ws = this.config.worldScale;
-            const center = road.centerline * ws;
-            const halfC = road.carriagewayWidth / 2;
-            const curbW = road.curbWidth;
-            const furnW = road.furnishingStripWidth;
-            const isH = road.direction === 'horizontal';
-            const length = isH ? this.config.worldWidth : this.config.worldHeight;
-
             for (const side of [-1, 1]) {
-                const stripCenter = center + side * (halfC + curbW + furnW / 2);
-
-                for (let t = spacing / 2; t < length; t += spacing) {
-                    const x = isH ? t : stripCenter;
-                    const z = isH ? stripCenter : t;
-
-                    // Skip near intersections and sight triangles
-                    if (this.zoneMap.isNearIntersection(x, z, clearance)) continue;
-                    if (this.zoneMap.isInZone(x, z, ZoneType.SIGHT_TRIANGLE)) continue;
-
+                this.placeAlongRoad(i, spacing, side, (x, z, angle) => {
                     const light = this.createStreetlight();
                     light.position.set(x, 0, z);
-
                     // Orient arm toward road
-                    if (isH) {
-                        light.rotation.y = side > 0 ? 0 : Math.PI;
-                    } else {
-                        light.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
-                    }
+                    light.rotation.y = angle + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
                     scene.add(light);
 
                     // Add point lights sparingly
-                    if (pointLightCount < maxLights && t % (spacing * 4) < spacing) {
+                    lightInterval++;
+                    if (pointLightCount < maxLights && lightInterval % 4 === 0) {
                         const pl = new THREE.PointLight(this.config.colors.LAMP_GLOW, 0.3, 30);
-                        pl.position.set(x + (isH ? 0 : side * 3), 11, z + (isH ? side * 3 : 0));
+                        pl.position.set(x, 11, z);
                         scene.add(pl);
                         pointLightCount++;
                     }
-                }
+                });
             }
         }
     }
 
-    private buildBenches(scene: THREE.Scene) {
+    // ===== BENCHES =====
+
+    private buildBenches(scene: THREE.Scene): void {
         const spacing = this.config.furniture.benchSpacing;
         if (spacing === 0) return;
-        const clearance = this.config.furniture.intersectionClearance;
 
-        for (const road of this.config.roads) {
-            const ws = this.config.worldScale;
-            const center = road.centerline * ws;
-            const halfC = road.carriagewayWidth / 2;
-            const curbW = road.curbWidth;
-            const furnW = road.furnishingStripWidth;
-            const isH = road.direction === 'horizontal';
-            const length = isH ? this.config.worldWidth : this.config.worldHeight;
-
-            // Benches only on one side (north/west) to avoid clutter
-            const side = -1;
-            const stripCenter = center + side * (halfC + curbW + furnW / 2);
-
-            for (let t = spacing / 2; t < length; t += spacing) {
-                const x = isH ? t : stripCenter;
-                const z = isH ? stripCenter : t;
-
-                if (this.zoneMap.isNearIntersection(x, z, clearance)) continue;
-                if (this.zoneMap.isInZone(x, z, ZoneType.SIGHT_TRIANGLE)) continue;
-
+        for (let i = 0; i < this.config.roads.length; i++) {
+            // Benches only on one side to avoid clutter
+            this.placeAlongRoad(i, spacing, -1, (x, z, angle) => {
                 const bench = this.createBench();
                 bench.position.set(x, 0, z);
-                if (!isH) bench.rotation.y = Math.PI / 2;
+                bench.rotation.y = angle;
                 scene.add(bench);
-            }
+            });
         }
     }
 
-    private buildTrashCans(scene: THREE.Scene) {
-        // Place near each intersection corner
+    // ===== TRASH CANS =====
+
+    private buildTrashCans(scene: THREE.Scene): void {
+        // Place near each intersection
         for (const inter of this.config.intersections) {
-            const hRoad = this.config.roads.find(r => r.direction === 'horizontal');
-            const vRoad = this.config.roads.find(r => r.direction === 'vertical');
-            if (!hRoad || !vRoad) continue;
+            const offset = inter.radius + 4;
 
-            const hHalfC = hRoad.carriagewayWidth / 2;
-            const vHalfC = vRoad.carriagewayWidth / 2;
-            const offset = 6;
+            // Place at 4 cardinal points around the intersection
+            for (let a = 0; a < 4; a++) {
+                const angle = (a / 4) * Math.PI * 2 + Math.PI / 4;
+                const tx = inter.center.x + Math.cos(angle) * offset;
+                const tz = inter.center.z + Math.sin(angle) * offset;
 
-            const positions = [
-                { x: inter.centerX + vHalfC + offset, z: inter.centerZ - hHalfC - offset },
-                { x: inter.centerX - vHalfC - offset, z: inter.centerZ + hHalfC + offset },
-                { x: inter.centerX + vHalfC + offset, z: inter.centerZ + hHalfC + offset },
-                { x: inter.centerX - vHalfC - offset, z: inter.centerZ - hHalfC - offset },
-            ];
-
-            for (const pos of positions) {
-                if (!this.zoneMap.isInZone(pos.x, pos.z, ZoneType.FURNISHING_STRIP) &&
-                    !this.zoneMap.isInZone(pos.x, pos.z, ZoneType.OPEN_LANDSCAPE)) continue;
+                const zone = this.zoneMap.getZone(tx, tz);
+                if (zone !== ZoneType.FURNISHING_STRIP && zone !== ZoneType.OPEN_LANDSCAPE) continue;
 
                 const tc = this.createTrashCan();
-                tc.position.set(pos.x, 0, pos.z);
+                tc.position.set(tx, 0, tz);
                 scene.add(tc);
             }
         }
     }
 
-    private buildHydrants(scene: THREE.Scene) {
-        // Place along roads at intervals
+    // ===== HYDRANTS =====
+
+    private buildHydrants(scene: THREE.Scene): void {
         const spacing = this.config.furniture.hydrantSpacing;
-        const clearance = this.config.furniture.intersectionClearance;
 
-        for (const road of this.config.roads) {
-            const ws = this.config.worldScale;
-            const center = road.centerline * ws;
-            const halfC = road.carriagewayWidth / 2;
-            const curbW = road.curbWidth;
-            const isH = road.direction === 'horizontal';
-            const length = isH ? this.config.worldWidth : this.config.worldHeight;
-
-            // Hydrants on one side, near curb
-            const side = 1;
-            const pos = center + side * (halfC + curbW + 0.8);
-
-            for (let t = spacing / 3; t < length; t += spacing) {
-                const x = isH ? t : pos;
-                const z = isH ? pos : t;
-
-                if (this.zoneMap.isNearIntersection(x, z, clearance)) continue;
-
+        for (let i = 0; i < this.config.roads.length; i++) {
+            this.placeAlongRoad(i, spacing, 1, (x, z, _angle) => {
                 const fh = this.createFireHydrant();
                 fh.position.set(x, 0, z);
                 scene.add(fh);
+            });
+        }
+    }
+
+    // ===== LONDON-SPECIFIC FURNITURE =====
+
+    private buildBollards(scene: THREE.Scene): void {
+        const spacing = this.config.furniture.bollardSpacing;
+
+        for (let i = 0; i < this.config.roads.length; i++) {
+            const road = this.config.roads[i];
+            // Only place bollards along lanes and secondary roads
+            if (road.type === 'boulevard' || road.type === 'main') continue;
+
+            for (const side of [-1, 1]) {
+                this.placeAlongRoad(i, spacing, side, (x, z, _angle) => {
+                    // Only in furnishing strips
+                    if (!this.zoneMap.isInZone(x, z, ZoneType.FURNISHING_STRIP)) return;
+                    const bollard = this.createBollard();
+                    bollard.position.set(x, 0, z);
+                    scene.add(bollard);
+                });
             }
         }
     }
 
-    private buildFences(scene: THREE.Scene) {
-        const fenceZ = this.config.homeLotBoundaryY * this.config.worldScale;
-        const sectionLen = 20;
+    private buildPhoneBoxes(scene: THREE.Scene): void {
+        const count = this.config.furniture.phoneBoxCount;
+        let placed = 0;
 
-        // Find vertical road to create gap
-        const vRoad = this.config.roads.find(r => r.direction === 'vertical');
-        const vCenter = vRoad ? vRoad.centerline * this.config.worldScale : -1;
-        const vHalfTotal = vRoad ? (vRoad.carriagewayWidth / 2 + vRoad.curbWidth + vRoad.furnishingStripWidth + vRoad.clearWalkWidth + 2) : 0;
+        // Distribute phone boxes along different roads
+        for (let i = 0; i < this.config.roads.length && placed < count; i++) {
+            const road = this.config.roads[i];
+            if (road.type === 'lane') continue; // Too narrow
 
-        for (let x = sectionLen / 2; x < this.config.worldWidth; x += sectionLen + 1) {
-            // Gap for road
-            if (vRoad && x > vCenter - vHalfTotal && x < vCenter + vHalfTotal) continue;
+            const totalLen = polylineLength(road.path);
+            const d = totalLen * 0.4 + Math.random() * totalLen * 0.2;
+            const sample = samplePolyline(road.path, d);
+            if (!sample) continue;
 
-            const fence = this.createFenceSection(sectionLen);
-            fence.position.set(x, 0, fenceZ);
-            scene.add(fence);
+            const perp = perpCW(sample.direction);
+            const offset = road.carriagewayWidth / 2 + road.curbWidth + road.furnishingStripWidth / 2;
+            const pos = add(sample.point, scale(perp, offset));
+
+            if (this.zoneMap.isNearIntersection(pos.x, pos.z, 15)) continue;
+
+            const box = this.createPhoneBox();
+            box.position.set(pos.x, 0, pos.z);
+            box.rotation.y = Math.atan2(sample.direction.z, sample.direction.x);
+            scene.add(box);
+            placed++;
         }
     }
 
-    // --- Furniture factory methods (extracted from ThreeGame) ---
+    private buildPillarBoxes(scene: THREE.Scene): void {
+        const count = this.config.furniture.pillarBoxCount;
+        let placed = 0;
+
+        for (let i = 0; i < this.config.roads.length && placed < count; i++) {
+            const road = this.config.roads[i];
+            const totalLen = polylineLength(road.path);
+            const d = totalLen * 0.6 + Math.random() * totalLen * 0.3;
+            const sample = samplePolyline(road.path, d);
+            if (!sample) continue;
+
+            const perp = perpCW(sample.direction);
+            const offset = road.carriagewayWidth / 2 + road.curbWidth + road.furnishingStripWidth * 0.8;
+            const pos = add(sample.point, scale(perp, -offset)); // opposite side from phone boxes
+
+            if (this.zoneMap.isNearIntersection(pos.x, pos.z, 15)) continue;
+
+            const pillar = this.createPillarBox();
+            pillar.position.set(pos.x, 0, pos.z);
+            scene.add(pillar);
+            placed++;
+        }
+    }
+
+    // ===== FACTORY METHODS =====
 
     private createStreetlight(): THREE.Group {
         const group = new THREE.Group();
@@ -254,7 +292,7 @@ export class FurnitureBuilder {
         lid.position.y = 2.6;
         group.add(lid);
 
-        body.userData.hoverLabel = 'Trash Can';
+        body.userData.hoverLabel = 'Bin';
         body.userData.hoverType = 'Furniture';
         return group;
     }
@@ -276,28 +314,102 @@ export class FurnitureBuilder {
         return group;
     }
 
-    private createFenceSection(length: number): THREE.Group {
+    private createBollard(): THREE.Group {
         const group = new THREE.Group();
-        const fenceMat = new THREE.MeshLambertMaterial({ color: this.config.colors.FENCE });
 
-        const post1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 0.5), fenceMat);
-        post1.position.set(-length / 2, 1.5, 0);
-        group.add(post1);
+        // Classic London cast-iron bollard
+        const bodyMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
 
-        const post2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 0.5), fenceMat);
-        post2.position.set(length / 2, 1.5, 0);
-        group.add(post2);
+        // Base
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 0.4, 8), bodyMat);
+        base.position.y = 0.2;
+        group.add(base);
 
-        const rail1 = new THREE.Mesh(new THREE.BoxGeometry(length, 0.3, 0.3), fenceMat);
-        rail1.position.y = 1;
-        group.add(rail1);
+        // Shaft
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 1.2, 8), bodyMat);
+        shaft.position.y = 1;
+        shaft.castShadow = true;
+        group.add(shaft);
 
-        const rail2 = new THREE.Mesh(new THREE.BoxGeometry(length, 0.3, 0.3), fenceMat);
-        rail2.position.y = 2;
-        group.add(rail2);
+        // Domed top
+        const top = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat);
+        top.position.y = 1.6;
+        group.add(top);
 
-        post1.userData.hoverLabel = 'Fence';
-        post1.userData.hoverType = 'Furniture';
+        shaft.userData.hoverLabel = 'Bollard';
+        shaft.userData.hoverType = 'Furniture';
+        return group;
+    }
+
+    private createPhoneBox(): THREE.Group {
+        const group = new THREE.Group();
+
+        // Classic red telephone box
+        const redMat = new THREE.MeshLambertMaterial({ color: 0xCC0000 });
+        const glassMat = new THREE.MeshLambertMaterial({ color: 0xAADDFF, transparent: true, opacity: 0.4 });
+
+        // Main body
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.8, 1.2), redMat);
+        body.position.y = 1.4;
+        body.castShadow = true;
+        group.add(body);
+
+        // Crown/dome top
+        const crown = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.3, 1.3), redMat);
+        crown.position.y = 2.95;
+        group.add(crown);
+
+        // Glass panels (4 sides, slightly inset)
+        for (let face = 0; face < 4; face++) {
+            const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.8), glassMat);
+            glass.position.y = 1.6;
+            const angle = (face / 4) * Math.PI * 2;
+            glass.position.x = Math.sin(angle) * 0.61;
+            glass.position.z = Math.cos(angle) * 0.61;
+            glass.rotation.y = angle;
+            group.add(glass);
+        }
+
+        body.userData.hoverLabel = 'Phone Box';
+        body.userData.hoverType = 'Landmark';
+        return group;
+    }
+
+    private createPillarBox(): THREE.Group {
+        const group = new THREE.Group();
+
+        // Royal Mail pillar box
+        const redMat = new THREE.MeshLambertMaterial({ color: 0xCC0000 });
+
+        // Cylindrical body
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.5, 12), redMat);
+        body.position.y = 0.75;
+        body.castShadow = true;
+        group.add(body);
+
+        // Domed top
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), redMat);
+        dome.position.y = 1.5;
+        group.add(dome);
+
+        // Letter slot (dark rectangle)
+        const slot = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.4, 0.08),
+            new THREE.MeshLambertMaterial({ color: 0x111111 })
+        );
+        slot.position.set(0, 1.1, 0.51);
+        group.add(slot);
+
+        // Collection times plate (white rectangle)
+        const plate = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.3, 0.2),
+            new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+        );
+        plate.position.set(0, 0.6, 0.51);
+        group.add(plate);
+
+        body.userData.hoverLabel = 'Pillar Box';
+        body.userData.hoverType = 'Landmark';
         return group;
     }
 }
