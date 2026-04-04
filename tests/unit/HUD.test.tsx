@@ -29,6 +29,8 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
     sfxVolume: 70,
     showDamageNumbers: true,
     showTooltips: true,
+    freeCameraEnabled: false,
+    freeCameraSpeed: 200,
     ...overrides,
   };
 }

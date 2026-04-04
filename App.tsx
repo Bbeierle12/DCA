@@ -31,6 +31,8 @@ const DEFAULT_SETTINGS = {
   sfxVolume: 100,
   showDamageNumbers: true,
   showTooltips: true,
+  freeCameraEnabled: false,
+  freeCameraSpeed: 200,
 };
 
 const SETTINGS_STORAGE_KEY = 'dca-game-settings';
@@ -107,13 +109,16 @@ export default function App() {
       sfxVolume: gameState.sfxVolume,
       showDamageNumbers: gameState.showDamageNumbers,
       showTooltips: gameState.showTooltips,
+      freeCameraEnabled: gameState.freeCameraEnabled,
+      freeCameraSpeed: gameState.freeCameraSpeed,
     };
     saveSettings(settingsToSave);
   }, [
     gameState.showMobileControls, gameState.alwaysRun, gameState.invertYCamera,
     gameState.cameraSensitivity, gameState.cameraRelativeMovement, gameState.renderDistance,
     gameState.shadowQuality, gameState.showOtherPlayers, gameState.masterVolume,
-    gameState.musicVolume, gameState.sfxVolume, gameState.showDamageNumbers, gameState.showTooltips
+    gameState.musicVolume, gameState.sfxVolume, gameState.showDamageNumbers, gameState.showTooltips,
+    gameState.freeCameraEnabled, gameState.freeCameraSpeed,
   ]);
 
   // Modals
@@ -261,6 +266,11 @@ export default function App() {
           gameRef.current.setRenderDistance(gameState.renderDistance);
           gameRef.current.setShadowQuality(gameState.shadowQuality);
           gameRef.current.setShowOtherPlayers(gameState.showOtherPlayers);
+          // Sync free camera state
+          if (gameRef.current.freeCameraEnabled !== gameState.freeCameraEnabled) {
+              gameRef.current.toggleFreeCamera();
+          }
+          gameRef.current.freeCameraSpeed = gameState.freeCameraSpeed;
       }
   }, [
       phase,
@@ -269,7 +279,9 @@ export default function App() {
       gameState.cameraRelativeMovement,
       gameState.renderDistance,
       gameState.shadowQuality,
-      gameState.showOtherPlayers
+      gameState.showOtherPlayers,
+      gameState.freeCameraEnabled,
+      gameState.freeCameraSpeed,
   ]);
 
   const handleInteract = useCallback(() => {

@@ -92,7 +92,7 @@ function Select<T extends string>({
     );
 }
 
-type TabId = 'controls' | 'graphics' | 'audio' | 'gameplay' | 'profile';
+type TabId = 'controls' | 'graphics' | 'audio' | 'gameplay' | 'camera' | 'profile';
 
 export default function SettingsModal({ onClose, config, setConfig, gameState, setGameState, onUnstuck }: Props) {
     const [activeTab, setActiveTab] = useState<TabId>('controls');
@@ -100,12 +100,13 @@ export default function SettingsModal({ onClose, config, setConfig, gameState, s
     const tabs: { id: TabId; label: string }[] = [
         { id: 'controls', label: 'Controls' },
         { id: 'graphics', label: 'Graphics' },
+        { id: 'camera', label: 'Camera' },
         { id: 'audio', label: 'Audio' },
         { id: 'gameplay', label: 'Gameplay' },
         { id: 'profile', label: 'Profile' },
     ];
 
-    const TabButton = ({ id, label }: { id: TabId; label: string }) => (
+    const TabButton: React.FC<{ id: TabId; label: string }> = ({ id, label }) => (
         <button
             onClick={() => setActiveTab(id)}
             className={`flex-1 py-2 text-base font-bold border-b-4 transition-colors ${
@@ -129,8 +130,8 @@ export default function SettingsModal({ onClose, config, setConfig, gameState, s
                 </div>
 
                 <div className="flex bg-gray-800 border-b border-gray-600 overflow-x-auto">
-                    {tabs.map((tab) => (
-                        <TabButton key={tab.id} id={tab.id} label={tab.label} />
+                    {tabs.map(({ id, label }) => (
+                        <TabButton key={id} id={id} label={label} />
                     ))}
                 </div>
 
@@ -148,26 +149,6 @@ export default function SettingsModal({ onClose, config, setConfig, gameState, s
                                 value={gameState.alwaysRun}
                                 onChange={(v) => setGameState((p) => ({ ...p, alwaysRun: v }))}
                             />
-                            <Toggle
-                                label="Invert Y Camera"
-                                value={gameState.invertYCamera}
-                                onChange={(v) => setGameState((p) => ({ ...p, invertYCamera: v }))}
-                            />
-                            <Toggle
-                                label="Camera-Relative Movement"
-                                value={gameState.cameraRelativeMovement}
-                                onChange={(v) => setGameState((p) => ({ ...p, cameraRelativeMovement: v }))}
-                            />
-                            <Slider
-                                label="Camera Sensitivity"
-                                value={gameState.cameraSensitivity}
-                                onChange={(v) => setGameState((p) => ({ ...p, cameraSensitivity: v }))}
-                                min={0.1}
-                                max={2.0}
-                                step={0.1}
-                                displayValue={gameState.cameraSensitivity.toFixed(1)}
-                            />
-
                             <div className="border-t border-gray-600 pt-4 mt-4">
                                 <p className="text-yellow-400 mb-2">Keyboard Controls</p>
                                 <p className="text-gray-300 text-base">WASD / Arrows - Move</p>
@@ -177,6 +158,7 @@ export default function SettingsModal({ onClose, config, setConfig, gameState, s
                                 <p className="text-gray-300 text-base">Q - Drop Weapon</p>
                                 <p className="text-gray-300 text-base">Right Click + Drag - Rotate Camera</p>
                                 <p className="text-gray-300 text-base">Scroll - Zoom</p>
+                                <p className="text-gray-300 text-base mt-2 text-cyan-400">` (Backtick) - Toggle Free Camera</p>
                             </div>
 
                             <button onClick={onUnstuck} className="w-full bg-red-600 hover:bg-red-500 py-2 rounded font-bold mt-4">
@@ -214,6 +196,64 @@ export default function SettingsModal({ onClose, config, setConfig, gameState, s
 
                             <div className="border-t border-gray-600 pt-4 mt-4 text-gray-400 text-base">
                                 <p>Lower render distance and shadow quality can improve performance on slower devices.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CAMERA TAB */}
+                    {activeTab === 'camera' && (
+                        <div className="space-y-4">
+                            <Toggle
+                                label="Invert Y Camera"
+                                value={gameState.invertYCamera}
+                                onChange={(v) => setGameState((p) => ({ ...p, invertYCamera: v }))}
+                            />
+                            <Toggle
+                                label="Camera-Relative Movement"
+                                value={gameState.cameraRelativeMovement}
+                                onChange={(v) => setGameState((p) => ({ ...p, cameraRelativeMovement: v }))}
+                            />
+                            <Slider
+                                label="Camera Sensitivity"
+                                value={gameState.cameraSensitivity}
+                                onChange={(v) => setGameState((p) => ({ ...p, cameraSensitivity: v }))}
+                                min={0.1}
+                                max={2.0}
+                                step={0.1}
+                                displayValue={gameState.cameraSensitivity.toFixed(1)}
+                            />
+
+                            <div className="border-t border-gray-600 pt-4 mt-4">
+                                <p className="text-yellow-400 mb-2">Free Camera</p>
+                            </div>
+                            <Toggle
+                                label="Free Camera Mode"
+                                value={gameState.freeCameraEnabled}
+                                onChange={(v) => setGameState((p) => ({ ...p, freeCameraEnabled: v }))}
+                            />
+                            <Slider
+                                label="Free Camera Speed"
+                                value={gameState.freeCameraSpeed}
+                                onChange={(v) => setGameState((p) => ({ ...p, freeCameraSpeed: v }))}
+                                min={20}
+                                max={2000}
+                                step={10}
+                                displayValue={`${Math.round(gameState.freeCameraSpeed)}`}
+                            />
+
+                            <div className="border-t border-gray-600 pt-4 mt-4">
+                                <p className="text-yellow-400 mb-2">Free Camera Controls</p>
+                                <p className="text-gray-300 text-base">` (Backtick) - Toggle On/Off</p>
+                                <p className="text-gray-300 text-base">WASD - Move Horizontally</p>
+                                <p className="text-gray-300 text-base">E / Space - Move Up</p>
+                                <p className="text-gray-300 text-base">Q - Move Down</p>
+                                <p className="text-gray-300 text-base">Shift - Speed Boost (3x)</p>
+                                <p className="text-gray-300 text-base">Click + Drag - Look Around</p>
+                                <p className="text-gray-300 text-base">Scroll - Adjust Speed</p>
+                            </div>
+
+                            <div className="border-t border-gray-600 pt-4 mt-4 text-gray-400 text-base">
+                                <p>Free camera detaches from your character and lets you fly around the world. Fog is disabled for full visibility. Player movement is paused while active.</p>
                             </div>
                         </div>
                     )}

@@ -71,6 +71,9 @@ export interface GameState {
   // Gameplay settings
   showDamageNumbers: boolean;
   showTooltips: boolean;
+  // Free camera
+  freeCameraEnabled: boolean;
+  freeCameraSpeed: number;            // 20 to 2000
 }
 
 export type GamePhase = 'MENU' | 'CREATOR' | 'PLAYING';
