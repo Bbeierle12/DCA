@@ -1072,6 +1072,7 @@ export class ThreeGame {
 
     private updateFreeCamera(deltaTime: number) {
         const speed = this.freeCameraSpeed * deltaTime;
+        const boosted = this.freeCameraShift ? speed * 3 : speed;
 
         // Forward/back/strafe based on yaw (horizontal only)
         const forward = new THREE.Vector3(
@@ -1085,17 +1086,17 @@ export class ThreeGame {
             Math.sin(this.freeCameraYaw)
         );
 
-        if (this.keys['w'] || this.keys['ArrowUp']) this.freeCameraPos.add(forward.clone().multiplyScalar(speed));
-        if (this.keys['s'] || this.keys['ArrowDown']) this.freeCameraPos.add(forward.clone().multiplyScalar(-speed));
-        if (this.keys['a'] || this.keys['ArrowLeft']) this.freeCameraPos.add(right.clone().multiplyScalar(-speed));
-        if (this.keys['d'] || this.keys['ArrowRight']) this.freeCameraPos.add(right.clone().multiplyScalar(speed));
+        if (this.keys['w'] || this.keys['W'] || this.keys['ArrowUp']) this.freeCameraPos.add(forward.clone().multiplyScalar(boosted));
+        if (this.keys['s'] || this.keys['S'] || this.keys['ArrowDown']) this.freeCameraPos.add(forward.clone().multiplyScalar(-boosted));
+        if (this.keys['a'] || this.keys['A'] || this.keys['ArrowLeft']) this.freeCameraPos.add(right.clone().multiplyScalar(-boosted));
+        if (this.keys['d'] || this.keys['D'] || this.keys['ArrowRight']) this.freeCameraPos.add(right.clone().multiplyScalar(boosted));
 
         // Vertical movement
-        if (this.keys['e'] || this.keys[' ']) this.freeCameraPos.y += speed;
-        if (this.keys['q'] || this.keys['Shift']) this.freeCameraPos.y -= speed;
+        if (this.keys['e'] || this.keys['E'] || this.keys[' ']) this.freeCameraPos.y += boosted;
+        if (this.keys['q'] || this.keys['Q']) this.freeCameraPos.y -= boosted;
 
         // Clamp height
-        this.freeCameraPos.y = Math.max(1, Math.min(800, this.freeCameraPos.y));
+        this.freeCameraPos.y = Math.max(1, Math.min(1500, this.freeCameraPos.y));
 
         // Apply position and look direction
         this.camera.position.copy(this.freeCameraPos);
@@ -1107,18 +1108,36 @@ export class ThreeGame {
         this.camera.lookAt(lookTarget);
     }
 
+    // Track shift separately since e.key for Shift doesn't pair well with other keys
+    private freeCameraShift = false;
+
     toggleFreeCamera() {
         this.freeCameraEnabled = !this.freeCameraEnabled;
         if (this.freeCameraEnabled) {
-            // Initialize free camera at current camera position
-            this.freeCameraPos.copy(this.camera.position);
-            // Extract yaw from current look direction
-            const dir = new THREE.Vector3();
-            this.camera.getWorldDirection(dir);
-            this.freeCameraYaw = Math.atan2(-dir.x, -dir.z);
-            this.freeCameraPitch = Math.asin(dir.y);
+            // Snap to bird's-eye view above the world center
+            this.freeCameraPos.set(400, 300, 400);
+            this.freeCameraYaw = 0;
+            this.freeCameraPitch = -Math.PI / 2 + 0.01; // looking straight down
+
+            // Disable fog so the whole world is visible from above
+            this.savedFog = this.scene.fog;
+            this.scene.fog = null;
+
+            // Extend far plane for high altitude
+            this.camera.far = 3000;
+            this.camera.updateProjectionMatrix();
+        } else {
+            // Restore fog and camera settings
+            if (this.savedFog) {
+                this.scene.fog = this.savedFog;
+                this.savedFog = null;
+            }
+            this.camera.far = 1000;
+            this.camera.updateProjectionMatrix();
         }
     }
+
+    private savedFog: THREE.FogBase | null = null;
 
     // Main Interaction Handler (called from UI or Keypress)
     handleInteraction(money: number, buildItem: string, buildLevel: number, isBuilding: boolean) {
@@ -1225,20 +1244,19 @@ export class ThreeGame {
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         this.mouseClient = { x: e.clientX, y: e.clientY };
 
-        if (this.mouseState.isDown && this.mouseState.button === 2) {
+        if (this.freeCameraEnabled && this.mouseState.isDown) {
+            // Any mouse button rotates in free camera mode
             const sensitivity = 0.005 * this.cameraSensitivity;
-
-            if (this.freeCameraEnabled) {
-                this.freeCameraYaw -= e.movementX * sensitivity;
-                const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
-                this.freeCameraPitch += yMovement * sensitivity;
-                this.freeCameraPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.freeCameraPitch));
-            } else {
-                this.cameraState.theta -= e.movementX * sensitivity;
-                const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
-                this.cameraState.phi -= yMovement * sensitivity;
-                this.cameraState.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraState.phi));
-            }
+            this.freeCameraYaw -= e.movementX * sensitivity;
+            const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
+            this.freeCameraPitch += yMovement * sensitivity;
+            this.freeCameraPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.freeCameraPitch));
+        } else if (this.mouseState.isDown && this.mouseState.button === 2) {
+            const sensitivity = 0.005 * this.cameraSensitivity;
+            this.cameraState.theta -= e.movementX * sensitivity;
+            const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
+            this.cameraState.phi -= yMovement * sensitivity;
+            this.cameraState.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraState.phi));
         }
 
         // Build Cursor Raycast
@@ -1259,6 +1277,12 @@ export class ThreeGame {
     }
     
     onMouseDown = (e: MouseEvent) => {
+        if (this.freeCameraEnabled) {
+            // Any button enables drag-look in free camera
+            this.mouseState.isDown = true;
+            this.mouseState.button = e.button;
+            return;
+        }
         if (e.button === 2) { // Right click
             this.mouseState.isDown = true;
             this.mouseState.button = 2;
@@ -1266,12 +1290,12 @@ export class ThreeGame {
             if (this.cachedState.isBuilding) {
                 const gx = Math.round(this.buildCursorPos.x / TILE_SIZE) * TILE_SIZE;
                 const gy = Math.round(this.buildCursorPos.y / TILE_SIZE) * TILE_SIZE;
-                
+
                 this.attemptBuildAt(
-                    gx, 
-                    gy, 
-                    this.cachedState.money, 
-                    this.cachedState.buildItem, 
+                    gx,
+                    gy,
+                    this.cachedState.money,
+                    this.cachedState.buildItem,
                     this.cachedState.buildLevel
                 );
             }
@@ -1299,9 +1323,10 @@ export class ThreeGame {
 
     onKeyDown = (e: KeyboardEvent) => {
         this.keys[e.key] = true;
+        if (e.key === 'Shift') this.freeCameraShift = true;
 
-        // Free camera toggle
-        if (e.key === 'F9') {
+        // Free camera toggle (backtick / tilde key)
+        if (e.key === '`' || e.key === '~' || e.key === 'F9') {
             e.preventDefault();
             this.toggleFreeCamera();
             return;
@@ -1323,7 +1348,10 @@ export class ThreeGame {
         }
     };
 
-    onKeyUp = (e: KeyboardEvent) => this.keys[e.key] = false;
+    onKeyUp = (e: KeyboardEvent) => {
+        this.keys[e.key] = false;
+        if (e.key === 'Shift') this.freeCameraShift = false;
+    };
 
     cleanup() {
         if (this.unsubPlayers) this.unsubPlayers();
