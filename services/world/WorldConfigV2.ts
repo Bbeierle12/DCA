@@ -148,177 +148,273 @@ function lane(id: string, name: string, path: PathPoint[], oneWay?: boolean): Ro
 }
 
 // ===== LONDON LAYOUT =====
+//
+// Geographically accurate relative positions (800x800 world):
+//   X axis = West(0) to East(800)
+//   Z axis = North(0) to South(800)
+//
+// Key landmarks:
+//   Hyde Park Corner roundabout: (240, 400) -- Park Lane meets Piccadilly
+//   Oxford Circus:               (430, 260) -- Regent St crosses Oxford St
+//   Piccadilly Circus:           (430, 390) -- Regent St meets Piccadilly
+//   Trafalgar Square:            (530, 490) -- Strand meets Whitehall
+//   Park Crescent:               (460, 100) -- Portland Place meets Marylebone Rd
+//
 
 export function createLondonWorldConfig(): WorldConfig {
     const worldWidth = MAP_WIDTH * TILE_SIZE * WORLD_SCALE;
     const worldHeight = MAP_HEIGHT * TILE_SIZE * WORLD_SCALE;
 
     const roads: RoadSegmentConfig[] = [
-        // --- Boulevards (carriagewayWidth: 14) ---
-        boulevard('kensington-w', 'Kensington High Street (West)', [
-            { x: 0, z: 400 }, { x: 365, z: 400 },
+        // ============================================================
+        // BOULEVARDS (carriagewayWidth: 14)
+        // ============================================================
+
+        // Oxford Street: major E-W artery through the West End
+        // Runs from Marble Arch (Park Lane) east past Oxford Circus
+        boulevard('oxford-street-w', 'Oxford Street (West)', [
+            { x: 50, z: 260 }, { x: 222, z: 260 },
         ]),
-        boulevard('kensington-e', 'Kensington High Street (East)', [
-            { x: 435, z: 400 }, { x: 800, z: 400 },
-        ]),
-        boulevard('park-lane-n', 'Park Lane (North)', [
-            { x: 400, z: 0 }, { x: 400, z: 365 },
-        ]),
-        boulevard('park-lane-s', 'Park Lane (South)', [
-            { x: 400, z: 435 }, { x: 400, z: 800 },
+        boulevard('oxford-street-e', 'Oxford Street (East)', [
+            { x: 258, z: 260 }, { x: 430, z: 260 }, { x: 700, z: 260 },
         ]),
 
-        // --- Main Roads (carriagewayWidth: 10) ---
-        mainRoad('regent-street', 'Regent Street', [
-            { x: 100, z: 100 }, { x: 250, z: 250 }, { x: 370, z: 370 },
+        // Park Lane: N-S along eastern edge of Hyde Park
+        // From Marble Arch (north) to Hyde Park Corner (south)
+        boulevard('park-lane', 'Park Lane', [
+            { x: 240, z: 80 }, { x: 240, z: 365 },
         ]),
+
+        // ============================================================
+        // MAIN ROADS (carriagewayWidth: 10)
+        // ============================================================
+
+        // Regent Street: N-S through the West End
+        // From Portland Place / Langham Place (north) through Oxford Circus
+        // then via the Quadrant curve to Piccadilly Circus (south)
+        mainRoad('regent-street-n', 'Regent Street (North)', [
+            { x: 430, z: 80 }, { x: 430, z: 242 },
+        ]),
+        mainRoad('regent-street-s', 'Regent Street (South)', [
+            { x: 430, z: 278 }, { x: 430, z: 390 },
+        ]),
+
+        // Piccadilly: E-W from Hyde Park Corner east to Piccadilly Circus
+        mainRoad('piccadilly', 'Piccadilly', [
+            { x: 275, z: 400 }, { x: 350, z: 395 }, { x: 412, z: 390 },
+        ]),
+
+        // The Strand: E-W from Trafalgar Square east (becomes Fleet Street)
         mainRoad('the-strand', 'The Strand', [
-            { x: 430, z: 430 }, { x: 600, z: 550 }, { x: 750, z: 650 },
+            { x: 548, z: 490 }, { x: 650, z: 490 }, { x: 710, z: 490 },
         ]),
-        mainRoad('oxford-street', 'Oxford Street', [
-            { x: 50, z: 200 }, { x: 350, z: 200 }, { x: 700, z: 200 },
+
+        // Fleet Street: continuation of The Strand heading east toward the City
+        mainRoad('fleet-street', 'Fleet Street', [
+            { x: 710, z: 490 }, { x: 780, z: 490 },
         ]),
+
+        // Whitehall: N-S from Trafalgar Square south to Parliament
         mainRoad('whitehall', 'Whitehall', [
-            { x: 600, z: 100 }, { x: 600, z: 400 },
+            { x: 530, z: 508 }, { x: 530, z: 700 },
         ]),
 
-        // --- Secondary Roads (carriagewayWidth: 9) ---
+        // Kensington Road: E-W, west of Hyde Park Corner (simplified as Kensington High St)
+        mainRoad('kensington', 'Kensington High Street', [
+            { x: 0, z: 400 }, { x: 205, z: 400 },
+        ]),
+
+        // ============================================================
+        // SECONDARY ROADS (carriagewayWidth: 9)
+        // ============================================================
+
+        // Baker Street: N-S in Marylebone, meets Oxford Street at its south end
         secondaryRoad('baker-street', 'Baker Street', [
-            { x: 200, z: 50 }, { x: 200, z: 350 },
-        ]),
-        secondaryRoad('piccadilly', 'Piccadilly', [
-            { x: 50, z: 350 }, { x: 200, z: 340 }, { x: 370, z: 390 },
-        ]),
-        secondaryRoad('fleet-street', 'Fleet Street', [
-            { x: 200, z: 600 }, { x: 500, z: 600 }, { x: 700, z: 580 },
+            { x: 310, z: 50 }, { x: 310, z: 260 },
         ]),
 
-        // --- Narrow Lanes (carriagewayWidth: 6) ---
+        // Portland Place: wide N-S boulevard north of Oxford Circus
+        // Connects to Regent Street via Langham Place
+        // Park Crescent at north end (curved terrace facing Regent's Park)
+        secondaryRoad('portland-place', 'Portland Place', [
+            { x: 460, z: 60 },
+            { x: 458, z: 100 },  // Park Crescent area
+            { x: 450, z: 150 },
+            { x: 440, z: 200 },
+            { x: 432, z: 242 },  // merges into Regent St at Langham Place
+        ]),
+
+        // Shaftesbury Avenue: NE from Piccadilly Circus toward Covent Garden area
+        secondaryRoad('shaftesbury-ave', 'Shaftesbury Avenue', [
+            { x: 448, z: 390 }, { x: 530, z: 350 }, { x: 620, z: 320 },
+        ]),
+
+        // Charing Cross Road: N-S connecting Leicester Square area to Trafalgar Sq
+        secondaryRoad('charing-cross-rd', 'Charing Cross Road', [
+            { x: 500, z: 300 }, { x: 510, z: 400 }, { x: 530, z: 472 },
+        ]),
+
+        // ============================================================
+        // NARROW LANES (carriagewayWidth: 6)
+        // ============================================================
+
+        // Carnaby Street: short N-S lane in Soho, just south of Oxford St, west of Regent St
         lane('carnaby-street', 'Carnaby Street', [
-            { x: 280, z: 150 }, { x: 280, z: 280 },
-        ]),
-        lane('savile-row', 'Savile Row', [
-            { x: 150, z: 200 }, { x: 150, z: 350 },
-        ]),
-        lane('neal-street', 'Neal Street', [
-            { x: 500, z: 450 }, { x: 550, z: 500 }, { x: 580, z: 570 },
+            { x: 400, z: 275 }, { x: 400, z: 370 },
         ]),
 
-        // --- Crescent (polyline approximation of arc) ---
-        secondaryRoad('portland-crescent', 'Portland Crescent', [
-            { x: 550, z: 100 },
-            { x: 620, z: 120 },
-            { x: 670, z: 160 },
-            { x: 690, z: 220 },
-            { x: 670, z: 280 },
-            { x: 620, z: 320 },
-            { x: 550, z: 340 },
+        // Savile Row: N-S in Mayfair, between Regent St and Bond St area
+        lane('savile-row', 'Savile Row', [
+            { x: 380, z: 300 }, { x: 380, z: 400 },
+        ]),
+
+        // Neal Street: short lane in Covent Garden
+        lane('neal-street', 'Neal Street', [
+            { x: 600, z: 380 }, { x: 600, z: 460 },
+        ]),
+
+        // Bond Street: N-S luxury shopping street in Mayfair
+        lane('bond-street', 'Bond Street', [
+            { x: 350, z: 260 }, { x: 350, z: 400 },
         ]),
     ];
 
     const intersections: IntersectionConfigV2[] = [
-        // Central roundabout
+        // ============================================================
+        // HYDE PARK CORNER -- roundabout
+        // Park Lane (from north) meets Piccadilly (from east) and Kensington (from west)
+        // ============================================================
         {
             id: 'hyde-park-corner',
-            center: { x: 400, z: 400 },
+            center: { x: 240, z: 400 },
             type: 'roundabout',
-            radius: 40,
-            approachRoadIds: ['kensington-w', 'kensington-e', 'park-lane-n', 'park-lane-s', 'regent-street', 'the-strand', 'piccadilly'],
-            approachAngles: [Math.PI, 0, -Math.PI / 2, Math.PI / 2, -3 * Math.PI / 4, Math.PI / 4, -Math.PI * 0.95],
-            roundaboutInnerRadius: 20,
-            roundaboutOuterRadius: 35,
-            sightTriangleLeg: 15,
+            radius: 35,
+            approachRoadIds: ['park-lane', 'piccadilly', 'kensington'],
+            approachAngles: [-Math.PI / 2, 0, Math.PI],
+            roundaboutInnerRadius: 16,
+            roundaboutOuterRadius: 30,
+            sightTriangleLeg: 12,
             crosswalkWidth: 4,
             stopBarOffset: 2,
             controlType: 'roundabout',
         },
-        // Standard 4-way: Baker Street / Oxford Street
+
+        // ============================================================
+        // OXFORD CIRCUS -- Regent St (N-S) crosses Oxford St (E-W)
+        // Famous 4-way signal-controlled intersection
+        // ============================================================
         {
-            id: 'baker-oxford',
-            center: { x: 200, z: 200 },
+            id: 'oxford-circus',
+            center: { x: 430, z: 260 },
             type: 'standard',
             radius: 18,
-            approachRoadIds: ['baker-street', 'oxford-street'],
+            approachRoadIds: ['regent-street-n', 'regent-street-s', 'oxford-street-e'],
             approachAngles: [-Math.PI / 2, Math.PI / 2, Math.PI, 0],
             sightTriangleLeg: 12,
-            crosswalkWidth: 3.5,
+            crosswalkWidth: 4,
             stopBarOffset: 1.5,
             controlType: 'signal',
         },
-        // T-intersection: Baker Street ends at Kensington
+
+        // ============================================================
+        // PICCADILLY CIRCUS -- Regent St meets Piccadilly
+        // Historically a circus (circular junction), now an open junction
+        // ============================================================
         {
-            id: 'baker-kensington',
-            center: { x: 200, z: 400 },
+            id: 'piccadilly-circus',
+            center: { x: 430, z: 390 },
+            type: 'roundabout',
+            radius: 22,
+            approachRoadIds: ['regent-street-s', 'piccadilly', 'shaftesbury-ave', 'charing-cross-rd'],
+            approachAngles: [-Math.PI / 2, Math.PI, Math.PI / 4, Math.PI / 2],
+            roundaboutInnerRadius: 8,
+            roundaboutOuterRadius: 18,
+            sightTriangleLeg: 10,
+            crosswalkWidth: 3.5,
+            stopBarOffset: 1.5,
+            controlType: 'roundabout',
+        },
+
+        // ============================================================
+        // TRAFALGAR SQUARE -- The Strand meets Whitehall
+        // Large public square with traffic flowing around
+        // ============================================================
+        {
+            id: 'trafalgar-square',
+            center: { x: 530, z: 490 },
+            type: 'roundabout',
+            radius: 25,
+            approachRoadIds: ['the-strand', 'whitehall', 'charing-cross-rd'],
+            approachAngles: [0, Math.PI / 2, -Math.PI / 2],
+            roundaboutInnerRadius: 12,
+            roundaboutOuterRadius: 22,
+            sightTriangleLeg: 10,
+            crosswalkWidth: 3.5,
+            stopBarOffset: 1.5,
+            controlType: 'roundabout',
+        },
+
+        // ============================================================
+        // MARBLE ARCH -- Park Lane meets Oxford Street (west end)
+        // ============================================================
+        {
+            id: 'marble-arch',
+            center: { x: 240, z: 260 },
             type: 'T',
             radius: 16,
-            approachRoadIds: ['baker-street', 'kensington-w'],
+            approachRoadIds: ['park-lane', 'oxford-street-w'],
             approachAngles: [-Math.PI / 2, Math.PI, 0],
             sightTriangleLeg: 12,
             crosswalkWidth: 3.5,
             stopBarOffset: 1.5,
-            controlType: 'yield',
+            controlType: 'signal',
         },
-        // T-intersection: Carnaby Street ends at Oxford Street
+
+        // ============================================================
+        // BAKER STREET / OXFORD STREET
+        // Baker St meets Oxford St from the north
+        // ============================================================
+        {
+            id: 'baker-oxford',
+            center: { x: 310, z: 260 },
+            type: 'T',
+            radius: 14,
+            approachRoadIds: ['baker-street', 'oxford-street-w'],
+            approachAngles: [-Math.PI / 2, Math.PI, 0],
+            sightTriangleLeg: 10,
+            crosswalkWidth: 3.5,
+            stopBarOffset: 1.5,
+            controlType: 'signal',
+        },
+
+        // ============================================================
+        // CARNABY / OXFORD STREET (pedestrian connection)
+        // ============================================================
         {
             id: 'carnaby-oxford',
-            center: { x: 280, z: 200 },
+            center: { x: 400, z: 267 },
             type: 'T',
-            radius: 12,
-            approachRoadIds: ['carnaby-street', 'oxford-street'],
-            approachAngles: [-Math.PI / 2, Math.PI, 0],
-            sightTriangleLeg: 10,
+            radius: 10,
+            approachRoadIds: ['carnaby-street', 'oxford-street-e'],
+            approachAngles: [Math.PI / 2, Math.PI, 0],
+            sightTriangleLeg: 8,
             crosswalkWidth: 3,
             stopBarOffset: 1.5,
             controlType: 'none',
         },
-        // T-intersection: Savile Row ends at Piccadilly
+
+        // ============================================================
+        // STRAND / FLEET STREET junction (continuous road, marked for clarity)
+        // Near Temple Bar / Royal Courts of Justice
+        // ============================================================
         {
-            id: 'savile-piccadilly',
-            center: { x: 150, z: 350 },
-            type: 'T',
-            radius: 12,
-            approachRoadIds: ['savile-row', 'piccadilly'],
-            approachAngles: [Math.PI / 2, Math.PI, 0],
-            sightTriangleLeg: 10,
-            crosswalkWidth: 3,
-            stopBarOffset: 1.5,
-            controlType: 'none',
-        },
-        // T-intersection: Whitehall meets Oxford Street
-        {
-            id: 'whitehall-oxford',
-            center: { x: 600, z: 200 },
-            type: 'T',
-            radius: 16,
-            approachRoadIds: ['whitehall', 'oxford-street'],
-            approachAngles: [Math.PI / 2, Math.PI, 0],
-            sightTriangleLeg: 12,
-            crosswalkWidth: 3.5,
-            stopBarOffset: 1.5,
-            controlType: 'signal',
-        },
-        // T-intersection: Portland Crescent north end meets Oxford Street
-        {
-            id: 'crescent-north',
-            center: { x: 550, z: 200 },
-            type: 'T',
-            radius: 14,
-            approachRoadIds: ['portland-crescent', 'oxford-street'],
-            approachAngles: [Math.PI / 2, Math.PI, 0],
-            sightTriangleLeg: 10,
-            crosswalkWidth: 3,
-            stopBarOffset: 1.5,
-            controlType: 'none',
-        },
-        // T-intersection: Portland Crescent south end
-        {
-            id: 'crescent-south',
-            center: { x: 550, z: 340 },
-            type: 'T',
-            radius: 14,
-            approachRoadIds: ['portland-crescent'],
-            approachAngles: [-Math.PI / 2],
-            sightTriangleLeg: 10,
+            id: 'strand-fleet',
+            center: { x: 710, z: 490 },
+            type: 'standard',
+            radius: 10,
+            approachRoadIds: ['the-strand', 'fleet-street'],
+            approachAngles: [Math.PI, 0],
+            sightTriangleLeg: 8,
             crosswalkWidth: 3,
             stopBarOffset: 1.5,
             controlType: 'none',
