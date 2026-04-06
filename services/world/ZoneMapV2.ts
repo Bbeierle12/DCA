@@ -1,5 +1,6 @@
 import {
     WorldConfig, ZoneType, RoadSegmentConfig, IntersectionConfigV2,
+    getCarriagewayWidth, getKerbsideConfig,
 } from './WorldConfigV2';
 import {
     PathPoint, sub, normalize, perpCW, segmentOrientedRect,
@@ -93,14 +94,14 @@ export class ZoneMapV2 {
 
     private paintRoadZones(road: RoadSegmentConfig): void {
         const segments = polylineSegments(road.path);
-        const halfC = road.carriagewayWidth / 2;
+        const halfC = getCarriagewayWidth(road) / 2;
         const curbW = road.curbWidth;
-        const furnW = road.furnishingStripWidth;
-        const walkW = road.clearWalkWidth;
+        const leftKerbside = getKerbsideConfig(road, 'left');
+        const rightKerbside = getKerbsideConfig(road, 'right');
 
         for (const seg of segments) {
             // Carriageway (center band)
-            this.paintSegmentBand(seg, 0, road.carriagewayWidth, ZoneType.CARRIAGEWAY);
+            this.paintSegmentBand(seg, 0, getCarriagewayWidth(road), ZoneType.CARRIAGEWAY);
 
             // Curbs (both sides)
             for (const side of [-1, 1]) {
@@ -108,17 +109,23 @@ export class ZoneMapV2 {
                 this.paintSegmentBand(seg, offset, curbW, ZoneType.CURB);
             }
 
-            // Furnishing strips (both sides)
-            for (const side of [-1, 1]) {
-                const offset = side * (halfC + curbW + furnW / 2);
-                this.paintSegmentBand(seg, offset, furnW, ZoneType.FURNISHING_STRIP);
-            }
+            // Side-specific furnishing strips
+            this.paintSegmentBand(seg, halfC + curbW + rightKerbside.width / 2, rightKerbside.width, ZoneType.FURNISHING_STRIP);
+            this.paintSegmentBand(seg, -(halfC + curbW + leftKerbside.width / 2), leftKerbside.width, ZoneType.FURNISHING_STRIP);
 
-            // Clear walks (both sides)
-            for (const side of [-1, 1]) {
-                const offset = side * (halfC + curbW + furnW + walkW / 2);
-                this.paintSegmentBand(seg, offset, walkW, ZoneType.CLEAR_WALK);
-            }
+            // Side-specific clear walks
+            this.paintSegmentBand(
+                seg,
+                halfC + curbW + rightKerbside.width + rightKerbside.clearWalkWidth / 2,
+                rightKerbside.clearWalkWidth,
+                ZoneType.CLEAR_WALK
+            );
+            this.paintSegmentBand(
+                seg,
+                -(halfC + curbW + leftKerbside.width + leftKerbside.clearWalkWidth / 2),
+                leftKerbside.clearWalkWidth,
+                ZoneType.CLEAR_WALK
+            );
         }
     }
 
@@ -167,7 +174,8 @@ export class ZoneMapV2 {
 
         // Sight triangles at corners
         const leg = inter.sightTriangleLeg;
-        for (const angle of inter.approachAngles) {
+        for (const arm of inter.arms) {
+            const angle = arm.angle;
             const cornerX = inter.center.x + Math.cos(angle) * r;
             const cornerZ = inter.center.z + Math.sin(angle) * r;
             rasterizeCircle(
@@ -209,9 +217,8 @@ export class ZoneMapV2 {
     getFurnishingStripsForRoad(roadIndex: number): Rect[] {
         const road = this.config.roads[roadIndex];
         if (!road) return [];
-        const halfC = road.carriagewayWidth / 2;
+        const halfC = getCarriagewayWidth(road) / 2;
         const curbW = road.curbWidth;
-        const furnW = road.furnishingStripWidth;
         const rects: Rect[] = [];
 
         const segments = polylineSegments(road.path);
@@ -220,17 +227,18 @@ export class ZoneMapV2 {
             const perp = perpCW(dir);
             const segLen = Math.sqrt((seg.p1.x - seg.p0.x) ** 2 + (seg.p1.z - seg.p0.z) ** 2);
 
-            for (const side of [-1, 1]) {
-                const offset = side * (halfC + curbW + furnW / 2);
+            for (const side of [-1, 1] as const) {
+                const kerbside = getKerbsideConfig(road, side === -1 ? 'left' : 'right');
+                const offset = side * (halfC + curbW + kerbside.width / 2);
                 const mid = add(
                     add(seg.p0, scale(sub(seg.p1, seg.p0), 0.5)),
                     scale(perp, offset)
                 );
                 rects.push({
                     x: mid.x - segLen / 2,
-                    z: mid.z - furnW / 2,
+                    z: mid.z - kerbside.width / 2,
                     width: segLen,
-                    height: furnW,
+                    height: kerbside.width,
                 });
             }
         }

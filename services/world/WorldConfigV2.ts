@@ -25,6 +25,23 @@ export enum ZoneType {
 // ===== ROAD CONFIGURATION =====
 
 export type RoadType = 'boulevard' | 'main' | 'secondary' | 'lane';
+export type LaneKind = 'general' | 'bus' | 'cycle';
+export type LaneDirection = 'forward' | 'backward';
+export type KerbsideUse = 'planting' | 'loading' | 'parking' | 'transit_stop';
+export type KerbMarking = 'none' | 'single_yellow' | 'double_yellow' | 'single_red' | 'double_red';
+
+export interface LaneConfig {
+    kind: LaneKind;
+    direction: LaneDirection;
+    width: number;
+}
+
+export interface KerbsideConfig {
+    width: number;
+    clearWalkWidth: number;
+    use: KerbsideUse;
+    marking: KerbMarking;
+}
 
 export interface RoadSegmentConfig {
     id: string;
@@ -39,20 +56,31 @@ export interface RoadSegmentConfig {
     furnishingStripWidth: number;
     clearWalkWidth: number;
     oneWay?: boolean;
+    laneLayout?: LaneConfig[];
+    leftKerbside?: KerbsideConfig;
+    rightKerbside?: KerbsideConfig;
 }
 
 // ===== INTERSECTION CONFIGURATION =====
 
 export type IntersectionType = 'standard' | 'roundabout' | 'T' | 'Y' | 'complex';
-export type TrafficControlType = 'signal' | 'yield' | 'roundabout' | 'none';
+export type CrossingType = 'signal' | 'zebra' | 'informal' | 'none';
+export type ArmControlType = 'signal' | 'give_way' | 'priority' | 'none';
+
+export interface IntersectionArmConfig {
+    roadId: string;
+    angle: number;
+    crossing: CrossingType;
+    control: ArmControlType;
+    stopLine?: boolean;
+}
 
 export interface IntersectionConfigV2 {
     id: string;
     center: PathPoint;
     type: IntersectionType;
     radius: number;                // Bounding radius of intersection zone
-    approachRoadIds: string[];
-    approachAngles: number[];      // Radians, angle each road enters at
+    arms: IntersectionArmConfig[];
     // Roundabout-specific
     roundaboutInnerRadius?: number;
     roundaboutOuterRadius?: number;
@@ -60,7 +88,6 @@ export interface IntersectionConfigV2 {
     sightTriangleLeg: number;
     crosswalkWidth: number;
     stopBarOffset: number;
-    controlType: TrafficControlType;
 }
 
 // ===== LANDSCAPE CONFIGURATION =====
@@ -99,52 +126,159 @@ export interface WorldConfig {
     mapWidth: number;
     mapHeight: number;
     colors: typeof COLORS;
+    randomSeed: number;
     roads: RoadSegmentConfig[];
     intersections: IntersectionConfigV2[];
     landscape: LandscapeConfig;
     furniture: FurnitureConfig;
 }
 
+interface RoadPresetOptions {
+    oneWay?: boolean;
+    laneLayout?: LaneConfig[];
+    leftKerbside?: Partial<KerbsideConfig>;
+    rightKerbside?: Partial<KerbsideConfig>;
+}
+
+function sumLaneWidths(lanes: LaneConfig[]): number {
+    return lanes.reduce((total, lane) => total + lane.width, 0);
+}
+
+function defaultKerbMarking(type: RoadType): KerbMarking {
+    switch (type) {
+        case 'boulevard':
+            return 'double_red';
+        case 'main':
+            return 'double_yellow';
+        case 'secondary':
+            return 'single_yellow';
+        default:
+            return 'none';
+    }
+}
+
+function createKerbsideConfig(
+    type: RoadType,
+    width: number,
+    clearWalkWidth: number,
+    override?: Partial<KerbsideConfig>
+): KerbsideConfig {
+    return {
+        width,
+        clearWalkWidth,
+        use: 'planting',
+        marking: defaultKerbMarking(type),
+        ...override,
+    };
+}
+
+function createDefaultLaneLayout(
+    type: RoadType,
+    laneWidth: number,
+    lanesPerDirection: number,
+    oneWay?: boolean
+): LaneConfig[] {
+    const layout: LaneConfig[] = [];
+    if (oneWay) {
+        for (let i = 0; i < lanesPerDirection * 2; i++) {
+            layout.push({ kind: 'general', direction: 'forward', width: laneWidth });
+        }
+        return layout;
+    }
+
+    for (let i = 0; i < lanesPerDirection; i++) {
+        layout.push({ kind: 'general', direction: 'forward', width: laneWidth });
+    }
+    for (let i = 0; i < lanesPerDirection; i++) {
+        layout.push({ kind: 'general', direction: 'backward', width: laneWidth });
+    }
+
+    if (type === 'lane' && layout.length === 0) {
+        return [{ kind: 'general', direction: 'forward', width: laneWidth }];
+    }
+    return layout;
+}
+
+function buildRoadConfig(
+    id: string,
+    name: string,
+    path: PathPoint[],
+    type: RoadType,
+    laneWidth: number,
+    lanesPerDirection: number,
+    curbWidth: number,
+    curbHeight: number,
+    furnishingStripWidth: number,
+    clearWalkWidth: number,
+    options: RoadPresetOptions = {}
+): RoadSegmentConfig {
+    const laneLayout = options.laneLayout || createDefaultLaneLayout(type, laneWidth, lanesPerDirection, options.oneWay);
+    const carriagewayWidth = sumLaneWidths(laneLayout);
+    return {
+        id,
+        name,
+        path,
+        type,
+        lanesPerDirection,
+        laneWidth,
+        carriagewayWidth,
+        curbWidth,
+        curbHeight,
+        furnishingStripWidth,
+        clearWalkWidth,
+        oneWay: options.oneWay,
+        laneLayout,
+        leftKerbside: createKerbsideConfig(type, furnishingStripWidth, clearWalkWidth, options.leftKerbside),
+        rightKerbside: createKerbsideConfig(type, furnishingStripWidth, clearWalkWidth, options.rightKerbside),
+    };
+}
+
+export function getLaneLayout(road: RoadSegmentConfig): LaneConfig[] {
+    return road.laneLayout && road.laneLayout.length > 0
+        ? road.laneLayout
+        : createDefaultLaneLayout(road.type, road.laneWidth, road.lanesPerDirection, road.oneWay);
+}
+
+export function getCarriagewayWidth(road: RoadSegmentConfig): number {
+    return sumLaneWidths(getLaneLayout(road));
+}
+
+export function getKerbsideConfig(road: RoadSegmentConfig, side: 'left' | 'right'): KerbsideConfig {
+    const override = side === 'left' ? road.leftKerbside : road.rightKerbside;
+    if (override) {
+        return override;
+    }
+    return createKerbsideConfig(road.type, road.furnishingStripWidth, road.clearWalkWidth);
+}
+
 // ===== ROAD PRESETS =====
 
-function boulevard(id: string, name: string, path: PathPoint[], oneWay?: boolean): RoadSegmentConfig {
-    return {
-        id, name, path, type: 'boulevard',
-        lanesPerDirection: 2, laneWidth: 3.5,
-        carriagewayWidth: 14, curbWidth: 0.4, curbHeight: 0.3,
-        furnishingStripWidth: 3, clearWalkWidth: 3,
-        oneWay,
-    };
+function boulevard(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
+    return buildRoadConfig(
+        id, name, path, 'boulevard',
+        3.5, 2, 0.4, 0.3, 3, 3, options
+    );
 }
 
-function mainRoad(id: string, name: string, path: PathPoint[], oneWay?: boolean): RoadSegmentConfig {
-    return {
-        id, name, path, type: 'main',
-        lanesPerDirection: 1, laneWidth: 5,
-        carriagewayWidth: 10, curbWidth: 0.4, curbHeight: 0.3,
-        furnishingStripWidth: 2.5, clearWalkWidth: 2.5,
-        oneWay,
-    };
+function mainRoad(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
+    return buildRoadConfig(
+        id, name, path, 'main',
+        5, 1, 0.4, 0.3, 2.5, 2.5, options
+    );
 }
 
-function secondaryRoad(id: string, name: string, path: PathPoint[], oneWay?: boolean): RoadSegmentConfig {
-    return {
-        id, name, path, type: 'secondary',
-        lanesPerDirection: 1, laneWidth: 4.5,
-        carriagewayWidth: 9, curbWidth: 0.4, curbHeight: 0.3,
-        furnishingStripWidth: 2, clearWalkWidth: 2,
-        oneWay,
-    };
+function secondaryRoad(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
+    return buildRoadConfig(
+        id, name, path, 'secondary',
+        4.5, 1, 0.4, 0.3, 2, 2, options
+    );
 }
 
-function lane(id: string, name: string, path: PathPoint[], oneWay?: boolean): RoadSegmentConfig {
-    return {
-        id, name, path, type: 'lane',
-        lanesPerDirection: 1, laneWidth: 3,
-        carriagewayWidth: 6, curbWidth: 0.3, curbHeight: 0.25,
-        furnishingStripWidth: 1.5, clearWalkWidth: 1.5,
-        oneWay,
-    };
+function lane(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
+    return buildRoadConfig(
+        id, name, path, 'lane',
+        3, 1, 0.3, 0.25, 1.5, 1.5, options
+    );
 }
 
 // ===== LONDON LAYOUT =====
@@ -174,16 +308,44 @@ export function createLondonWorldConfig(): WorldConfig {
         // Runs from Marble Arch (Park Lane) east past Oxford Circus
         boulevard('oxford-street-w', 'Oxford Street (West)', [
             { x: 50, z: 260 }, { x: 222, z: 260 },
-        ]),
+        ], {
+            laneLayout: [
+                { kind: 'bus', direction: 'forward', width: 3.3 },
+                { kind: 'general', direction: 'forward', width: 3.7 },
+                { kind: 'general', direction: 'backward', width: 3.7 },
+                { kind: 'bus', direction: 'backward', width: 3.3 },
+            ],
+            leftKerbside: { use: 'loading', marking: 'double_yellow' },
+            rightKerbside: { use: 'loading', marking: 'double_yellow' },
+        }),
         boulevard('oxford-street-e', 'Oxford Street (East)', [
             { x: 258, z: 260 }, { x: 430, z: 260 }, { x: 700, z: 260 },
-        ]),
+        ], {
+            laneLayout: [
+                { kind: 'bus', direction: 'forward', width: 3.3 },
+                { kind: 'general', direction: 'forward', width: 3.7 },
+                { kind: 'general', direction: 'backward', width: 3.7 },
+                { kind: 'bus', direction: 'backward', width: 3.3 },
+            ],
+            leftKerbside: { use: 'loading', marking: 'double_yellow' },
+            rightKerbside: { use: 'loading', marking: 'double_yellow' },
+        }),
 
         // Park Lane: N-S along eastern edge of Hyde Park
         // From Marble Arch (north) to Hyde Park Corner (south)
         boulevard('park-lane', 'Park Lane', [
             { x: 240, z: 80 }, { x: 240, z: 365 },
-        ]),
+        ], {
+            oneWay: true,
+            laneLayout: [
+                { kind: 'cycle', direction: 'forward', width: 1.8 },
+                { kind: 'general', direction: 'forward', width: 4.1 },
+                { kind: 'general', direction: 'forward', width: 4.1 },
+                { kind: 'bus', direction: 'forward', width: 4.0 },
+            ],
+            leftKerbside: { use: 'planting', marking: 'double_red' },
+            rightKerbside: { use: 'transit_stop', marking: 'double_red' },
+        }),
 
         // ============================================================
         // MAIN ROADS (carriagewayWidth: 10)
@@ -194,15 +356,41 @@ export function createLondonWorldConfig(): WorldConfig {
         // then via the Quadrant curve to Piccadilly Circus (south)
         mainRoad('regent-street-n', 'Regent Street (North)', [
             { x: 430, z: 80 }, { x: 430, z: 242 },
-        ]),
+        ], {
+            laneLayout: [
+                { kind: 'cycle', direction: 'forward', width: 1.5 },
+                { kind: 'general', direction: 'forward', width: 3.5 },
+                { kind: 'general', direction: 'backward', width: 3.5 },
+                { kind: 'cycle', direction: 'backward', width: 1.5 },
+            ],
+            leftKerbside: { use: 'loading' },
+            rightKerbside: { use: 'loading' },
+        }),
         mainRoad('regent-street-s', 'Regent Street (South)', [
             { x: 430, z: 278 }, { x: 430, z: 390 },
-        ]),
+        ], {
+            laneLayout: [
+                { kind: 'cycle', direction: 'forward', width: 1.5 },
+                { kind: 'general', direction: 'forward', width: 3.5 },
+                { kind: 'general', direction: 'backward', width: 3.5 },
+                { kind: 'cycle', direction: 'backward', width: 1.5 },
+            ],
+            leftKerbside: { use: 'loading' },
+            rightKerbside: { use: 'loading' },
+        }),
 
         // Piccadilly: E-W from Hyde Park Corner east to Piccadilly Circus
         mainRoad('piccadilly', 'Piccadilly', [
             { x: 275, z: 400 }, { x: 350, z: 395 }, { x: 412, z: 390 },
-        ]),
+        ], {
+            laneLayout: [
+                { kind: 'bus', direction: 'forward', width: 3.1 },
+                { kind: 'general', direction: 'forward', width: 3.4 },
+                { kind: 'general', direction: 'backward', width: 3.5 },
+            ],
+            leftKerbside: { use: 'loading', marking: 'double_yellow' },
+            rightKerbside: { use: 'planting', marking: 'double_yellow' },
+        }),
 
         // The Strand: E-W from Trafalgar Square east (becomes Fleet Street)
         mainRoad('the-strand', 'The Strand', [
@@ -247,7 +435,14 @@ export function createLondonWorldConfig(): WorldConfig {
         // Shaftesbury Avenue: NE from Piccadilly Circus toward Covent Garden area
         secondaryRoad('shaftesbury-ave', 'Shaftesbury Avenue', [
             { x: 448, z: 390 }, { x: 530, z: 350 }, { x: 620, z: 320 },
-        ]),
+        ], {
+            laneLayout: [
+                { kind: 'cycle', direction: 'forward', width: 1.5 },
+                { kind: 'general', direction: 'forward', width: 3.0 },
+                { kind: 'general', direction: 'backward', width: 3.0 },
+                { kind: 'cycle', direction: 'backward', width: 1.5 },
+            ],
+        }),
 
         // Charing Cross Road: N-S connecting Leicester Square area to Trafalgar Sq
         secondaryRoad('charing-cross-rd', 'Charing Cross Road', [
@@ -261,7 +456,15 @@ export function createLondonWorldConfig(): WorldConfig {
         // Carnaby Street: short N-S lane in Soho, just south of Oxford St, west of Regent St
         lane('carnaby-street', 'Carnaby Street', [
             { x: 400, z: 275 }, { x: 400, z: 370 },
-        ]),
+        ], {
+            oneWay: true,
+            laneLayout: [
+                { kind: 'general', direction: 'forward', width: 3.0 },
+                { kind: 'cycle', direction: 'forward', width: 3.0 },
+            ],
+            leftKerbside: { use: 'parking' },
+            rightKerbside: { use: 'loading' },
+        }),
 
         // Savile Row: N-S in Mayfair, between Regent St and Bond St area
         lane('savile-row', 'Savile Row', [
@@ -271,7 +474,11 @@ export function createLondonWorldConfig(): WorldConfig {
         // Neal Street: short lane in Covent Garden
         lane('neal-street', 'Neal Street', [
             { x: 600, z: 380 }, { x: 600, z: 460 },
-        ]),
+        ], {
+            oneWay: true,
+            leftKerbside: { use: 'parking' },
+            rightKerbside: { use: 'loading' },
+        }),
 
         // Bond Street: N-S luxury shopping street in Mayfair
         lane('bond-street', 'Bond Street', [
@@ -289,14 +496,16 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 240, z: 400 },
             type: 'roundabout',
             radius: 35,
-            approachRoadIds: ['park-lane', 'piccadilly', 'kensington'],
-            approachAngles: [-Math.PI / 2, 0, Math.PI],
+            arms: [
+                { roadId: 'park-lane', angle: -Math.PI / 2, crossing: 'none', control: 'give_way' },
+                { roadId: 'piccadilly', angle: 0, crossing: 'zebra', control: 'give_way' },
+                { roadId: 'kensington', angle: Math.PI, crossing: 'zebra', control: 'give_way' },
+            ],
             roundaboutInnerRadius: 16,
             roundaboutOuterRadius: 30,
             sightTriangleLeg: 12,
             crosswalkWidth: 4,
             stopBarOffset: 2,
-            controlType: 'roundabout',
         },
 
         // ============================================================
@@ -308,12 +517,15 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 430, z: 260 },
             type: 'standard',
             radius: 18,
-            approachRoadIds: ['regent-street-n', 'regent-street-s', 'oxford-street-e'],
-            approachAngles: [-Math.PI / 2, Math.PI / 2, Math.PI, 0],
+            arms: [
+                { roadId: 'regent-street-n', angle: -Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'regent-street-s', angle: Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'oxford-street-w', angle: Math.PI, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'oxford-street-e', angle: 0, crossing: 'signal', control: 'signal', stopLine: true },
+            ],
             sightTriangleLeg: 12,
             crosswalkWidth: 4,
             stopBarOffset: 1.5,
-            controlType: 'signal',
         },
 
         // ============================================================
@@ -325,14 +537,17 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 430, z: 390 },
             type: 'roundabout',
             radius: 22,
-            approachRoadIds: ['regent-street-s', 'piccadilly', 'shaftesbury-ave', 'charing-cross-rd'],
-            approachAngles: [-Math.PI / 2, Math.PI, Math.PI / 4, Math.PI / 2],
+            arms: [
+                { roadId: 'regent-street-s', angle: -Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'piccadilly', angle: Math.PI, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'shaftesbury-ave', angle: Math.PI / 4, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'charing-cross-rd', angle: Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+            ],
             roundaboutInnerRadius: 8,
             roundaboutOuterRadius: 18,
             sightTriangleLeg: 10,
             crosswalkWidth: 3.5,
             stopBarOffset: 1.5,
-            controlType: 'roundabout',
         },
 
         // ============================================================
@@ -344,14 +559,16 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 530, z: 490 },
             type: 'roundabout',
             radius: 25,
-            approachRoadIds: ['the-strand', 'whitehall', 'charing-cross-rd'],
-            approachAngles: [0, Math.PI / 2, -Math.PI / 2],
+            arms: [
+                { roadId: 'the-strand', angle: 0, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'whitehall', angle: Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'charing-cross-rd', angle: -Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+            ],
             roundaboutInnerRadius: 12,
             roundaboutOuterRadius: 22,
             sightTriangleLeg: 10,
             crosswalkWidth: 3.5,
             stopBarOffset: 1.5,
-            controlType: 'roundabout',
         },
 
         // ============================================================
@@ -362,12 +579,14 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 240, z: 260 },
             type: 'T',
             radius: 16,
-            approachRoadIds: ['park-lane', 'oxford-street-w'],
-            approachAngles: [-Math.PI / 2, Math.PI, 0],
+            arms: [
+                { roadId: 'park-lane', angle: -Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'oxford-street-w', angle: Math.PI, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'oxford-street-e', angle: 0, crossing: 'signal', control: 'signal', stopLine: true },
+            ],
             sightTriangleLeg: 12,
             crosswalkWidth: 3.5,
             stopBarOffset: 1.5,
-            controlType: 'signal',
         },
 
         // ============================================================
@@ -379,12 +598,14 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 310, z: 260 },
             type: 'T',
             radius: 14,
-            approachRoadIds: ['baker-street', 'oxford-street-w'],
-            approachAngles: [-Math.PI / 2, Math.PI, 0],
+            arms: [
+                { roadId: 'baker-street', angle: -Math.PI / 2, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'oxford-street-w', angle: Math.PI, crossing: 'signal', control: 'signal', stopLine: true },
+                { roadId: 'oxford-street-e', angle: 0, crossing: 'signal', control: 'signal', stopLine: true },
+            ],
             sightTriangleLeg: 10,
             crosswalkWidth: 3.5,
             stopBarOffset: 1.5,
-            controlType: 'signal',
         },
 
         // ============================================================
@@ -395,12 +616,14 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 400, z: 267 },
             type: 'T',
             radius: 10,
-            approachRoadIds: ['carnaby-street', 'oxford-street-e'],
-            approachAngles: [Math.PI / 2, Math.PI, 0],
+            arms: [
+                { roadId: 'carnaby-street', angle: Math.PI / 2, crossing: 'zebra', control: 'priority' },
+                { roadId: 'oxford-street-w', angle: Math.PI, crossing: 'none', control: 'priority' },
+                { roadId: 'oxford-street-e', angle: 0, crossing: 'none', control: 'priority' },
+            ],
             sightTriangleLeg: 8,
             crosswalkWidth: 3,
             stopBarOffset: 1.5,
-            controlType: 'none',
         },
 
         // ============================================================
@@ -412,12 +635,13 @@ export function createLondonWorldConfig(): WorldConfig {
             center: { x: 710, z: 490 },
             type: 'standard',
             radius: 10,
-            approachRoadIds: ['the-strand', 'fleet-street'],
-            approachAngles: [Math.PI, 0],
+            arms: [
+                { roadId: 'the-strand', angle: Math.PI, crossing: 'none', control: 'priority' },
+                { roadId: 'fleet-street', angle: 0, crossing: 'none', control: 'priority' },
+            ],
             sightTriangleLeg: 8,
             crosswalkWidth: 3,
             stopBarOffset: 1.5,
-            controlType: 'none',
         },
     ];
 
@@ -429,6 +653,7 @@ export function createLondonWorldConfig(): WorldConfig {
         mapWidth: MAP_WIDTH,
         mapHeight: MAP_HEIGHT,
         colors: COLORS,
+        randomSeed: 19760401,
         roads,
         intersections,
         landscape: {

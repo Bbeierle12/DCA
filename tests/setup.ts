@@ -32,6 +32,39 @@ if (!window.ResizeObserver) {
 
 const canvasGetContext = HTMLCanvasElement.prototype.getContext;
 HTMLCanvasElement.prototype.getContext = function getContext(type: string, ...args: unknown[]) {
+  if (type === '2d') {
+    return {
+      canvas: this,
+      fillStyle: '#000000',
+      strokeStyle: '#000000',
+      lineWidth: 1,
+      beginPath: () => {},
+      closePath: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      stroke: () => {},
+      fillRect: () => {},
+      clearRect: () => {},
+      arc: () => {},
+      fill: () => {},
+      save: () => {},
+      restore: () => {},
+      translate: () => {},
+      rotate: () => {},
+      scale: () => {},
+      drawImage: () => {},
+      createLinearGradient: () => ({ addColorStop: () => {} }),
+      createPattern: () => null,
+      createRadialGradient: () => ({ addColorStop: () => {} }),
+      getImageData: () => ({ data: new Uint8ClampedArray() }),
+      putImageData: () => {},
+      measureText: () => ({ width: 0 }),
+      setTransform: () => {},
+      fillText: () => {},
+      strokeText: () => {},
+    } as unknown as CanvasRenderingContext2D;
+  }
+
   if (type === 'webgl' || type === 'webgl2') {
     return {
       canvas: this,

@@ -42,8 +42,8 @@ export class RoundaboutBuilder {
         this.buildDirectionArrows(scene, cx, cz, innerR, outerR, segments);
 
         // Yield signs at each approach
-        for (let i = 0; i < inter.approachAngles.length; i++) {
-            const angle = inter.approachAngles[i];
+        for (const arm of inter.arms) {
+            const angle = arm.angle;
             this.buildYieldSign(scene, cx, cz, outerR, angle);
         }
 

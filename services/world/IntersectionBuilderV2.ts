@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { WorldConfig, IntersectionConfigV2, RoadSegmentConfig } from './WorldConfigV2';
-import { TextureFactory } from './TextureFactory';
 import {
-    PathPoint, sub, add, scale, normalize, perpCW, dist,
-    polylineSegments, closestPointOnSegment, Segment,
-} from './RoadGeometry';
+    WorldConfig, IntersectionConfigV2, RoadSegmentConfig, IntersectionArmConfig,
+} from './WorldConfigV2';
+import { TextureFactory } from './TextureFactory';
+import { PathPoint, perpCW } from './RoadGeometry';
 
 export class IntersectionBuilderV2 {
     private config: WorldConfig;
@@ -29,17 +28,19 @@ export class IntersectionBuilderV2 {
         // Get approach roads
         const approaches = this.getApproaches(inter);
 
-        // Crosswalks on each approach
+        // Per-arm controls and crossings
         for (const approach of approaches) {
-            this.buildCrosswalk(scene, inter, approach);
-            this.buildStopBar(scene, inter, approach);
-        }
-
-        // Traffic control
-        if (inter.controlType === 'signal') {
-            this.buildTrafficLights(scene, inter, approaches);
-        } else if (inter.controlType === 'yield') {
-            this.buildYieldSigns(scene, inter, approaches);
+            if (approach.arm.crossing !== 'none') {
+                this.buildCrosswalk(scene, inter, approach);
+            }
+            if (approach.arm.stopLine) {
+                this.buildStopBar(scene, inter, approach);
+            }
+            if (approach.arm.control === 'signal') {
+                this.buildTrafficLightForApproach(scene, inter, approach);
+            } else if (approach.arm.control === 'give_way') {
+                this.buildYieldSignForApproach(scene, inter, approach);
+            }
         }
 
         // Curb ramps at corners
@@ -62,21 +63,20 @@ export class IntersectionBuilderV2 {
 
     private getApproaches(inter: IntersectionConfigV2): ApproachInfo[] {
         const approaches: ApproachInfo[] = [];
-        for (let i = 0; i < inter.approachAngles.length; i++) {
-            const angle = inter.approachAngles[i];
-            const roadId = inter.approachRoadIds[Math.min(i, inter.approachRoadIds.length - 1)];
-            const road = this.config.roads.find(r => r.id === roadId);
+        for (const arm of inter.arms) {
+            const road = this.config.roads.find(r => r.id === arm.roadId);
 
             approaches.push({
-                angle,
-                roadId,
+                angle: arm.angle,
+                roadId: arm.roadId,
                 road,
+                arm,
                 // Direction the approach comes FROM (toward center)
-                dirToCenter: { x: -Math.cos(angle), z: -Math.sin(angle) },
+                dirToCenter: { x: -Math.cos(arm.angle), z: -Math.sin(arm.angle) },
                 // Point at the edge of the intersection on this approach
                 edgePoint: {
-                    x: inter.center.x + Math.cos(angle) * inter.radius,
-                    z: inter.center.z + Math.sin(angle) * inter.radius,
+                    x: inter.center.x + Math.cos(arm.angle) * inter.radius,
+                    z: inter.center.z + Math.sin(arm.angle) * inter.radius,
                 },
             });
         }
@@ -93,7 +93,7 @@ export class IntersectionBuilderV2 {
         const cx = inter.center.x + Math.cos(approach.angle) * offset;
         const cz = inter.center.z + Math.sin(approach.angle) * offset;
 
-        const tex = this.textures.createCrosswalkTexture(carriageWidth);
+        const tex = this.textures.createCrosswalkTexture(carriageWidth, approach.arm.crossing);
         const geo = new THREE.PlaneGeometry(carriageWidth, cwW);
         const mat = new THREE.MeshLambertMaterial({ map: tex });
         const mesh = new THREE.Mesh(geo, mat);
@@ -102,7 +102,7 @@ export class IntersectionBuilderV2 {
         mesh.rotation.z = -approach.angle;
         mesh.position.set(cx, 0.03, cz);
         mesh.receiveShadow = true;
-        mesh.userData.hoverLabel = 'Crossing';
+        mesh.userData.hoverLabel = approach.arm.crossing === 'zebra' ? 'Zebra Crossing' : 'Crossing';
         mesh.userData.hoverType = 'Terrain';
         scene.add(mesh);
     }
@@ -127,22 +127,20 @@ export class IntersectionBuilderV2 {
         scene.add(mesh);
     }
 
-    private buildTrafficLights(scene: THREE.Scene, inter: IntersectionConfigV2, approaches: ApproachInfo[]): void {
-        for (const approach of approaches) {
-            const road = approach.road;
-            const halfC = road ? road.carriagewayWidth / 2 : 4.5;
-            const curbW = road ? road.curbWidth : 0.4;
+    private buildTrafficLightForApproach(scene: THREE.Scene, inter: IntersectionConfigV2, approach: ApproachInfo): void {
+        const road = approach.road;
+        const halfC = road ? road.carriagewayWidth / 2 : 4.5;
+        const curbW = road ? road.curbWidth : 0.4;
 
-            // Position: right side of the approach, on the curb
-            const perp = perpCW(approach.dirToCenter);
-            const offset = inter.radius + inter.crosswalkWidth + 2;
-            const baseX = inter.center.x + Math.cos(approach.angle) * offset;
-            const baseZ = inter.center.z + Math.sin(approach.angle) * offset;
-            const sx = baseX + perp.x * (halfC + curbW + 1);
-            const sz = baseZ + perp.z * (halfC + curbW + 1);
+        // Position: right side of the approach, on the curb
+        const perp = perpCW(approach.dirToCenter);
+        const offset = inter.radius + inter.crosswalkWidth + 2;
+        const baseX = inter.center.x + Math.cos(approach.angle) * offset;
+        const baseZ = inter.center.z + Math.sin(approach.angle) * offset;
+        const sx = baseX + perp.x * (halfC + curbW + 1);
+        const sz = baseZ + perp.z * (halfC + curbW + 1);
 
-            this.buildTrafficLight(scene, sx, sz, approach.angle + Math.PI);
-        }
+        this.buildTrafficLight(scene, sx, sz, approach.angle + Math.PI);
     }
 
     private buildTrafficLight(scene: THREE.Scene, x: number, z: number, facingAngle: number): void {
@@ -197,27 +195,19 @@ export class IntersectionBuilderV2 {
         scene.add(group);
     }
 
-    private buildYieldSigns(scene: THREE.Scene, inter: IntersectionConfigV2, approaches: ApproachInfo[]): void {
-        // For T-intersections, only the stem road gets a yield sign
-        // For standard, all approaches get one
-        const stemApproaches = inter.type === 'T'
-            ? approaches.slice(-1) // last approach is typically the stem
-            : approaches;
+    private buildYieldSignForApproach(scene: THREE.Scene, inter: IntersectionConfigV2, approach: ApproachInfo): void {
+        const road = approach.road;
+        const halfC = road ? road.carriagewayWidth / 2 : 4.5;
+        const curbW = road ? road.curbWidth : 0.4;
 
-        for (const approach of stemApproaches) {
-            const road = approach.road;
-            const halfC = road ? road.carriagewayWidth / 2 : 4.5;
-            const curbW = road ? road.curbWidth : 0.4;
+        const perp = perpCW(approach.dirToCenter);
+        const offset = inter.radius + inter.crosswalkWidth + 2;
+        const baseX = inter.center.x + Math.cos(approach.angle) * offset;
+        const baseZ = inter.center.z + Math.sin(approach.angle) * offset;
+        const sx = baseX + perp.x * (halfC + curbW + 1);
+        const sz = baseZ + perp.z * (halfC + curbW + 1);
 
-            const perp = perpCW(approach.dirToCenter);
-            const offset = inter.radius + inter.crosswalkWidth + 2;
-            const baseX = inter.center.x + Math.cos(approach.angle) * offset;
-            const baseZ = inter.center.z + Math.sin(approach.angle) * offset;
-            const sx = baseX + perp.x * (halfC + curbW + 1);
-            const sz = baseZ + perp.z * (halfC + curbW + 1);
-
-            this.buildYieldSign(scene, sx, sz, approach.angle + Math.PI);
-        }
+        this.buildYieldSign(scene, sx, sz, approach.angle + Math.PI);
     }
 
     private buildYieldSign(scene: THREE.Scene, x: number, z: number, facingAngle: number): void {
@@ -296,6 +286,7 @@ interface ApproachInfo {
     angle: number;
     roadId: string;
     road: RoadSegmentConfig | undefined;
+    arm: IntersectionArmConfig;
     dirToCenter: PathPoint;
     edgePoint: PathPoint;
 }

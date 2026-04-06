@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { WorldConfig, RoadSegmentConfig, RoadType } from './WorldConfigV2';
+import {
+    WorldConfig, RoadSegmentConfig, LaneConfig, KerbMarking,
+    getCarriagewayWidth, getKerbsideConfig, getLaneLayout,
+} from './WorldConfigV2';
 import { TextureFactory } from './TextureFactory';
 import {
     PathPoint, sub, add, scale, normalize, perpCW, dist,
@@ -55,6 +58,7 @@ export class PathRoadBuilder {
             this.buildSegmentCurbs(scene, seg, road, startJoint, endJoint);
             this.buildSegmentFurnishing(scene, seg, road, startJoint, endJoint);
             this.buildSegmentSidewalks(scene, seg, road, startJoint, endJoint);
+            this.buildLaneFeatures(scene, path, i, seg, road, cumulativeLength, segLen);
 
             cumulativeLength += segLen;
         }
@@ -70,42 +74,43 @@ export class PathRoadBuilder {
         road: RoadSegmentConfig
     ): CrossSectionVertices {
         const center = path[waypointIndex];
-        const halfC = road.carriagewayWidth / 2;
+        const halfC = getCarriagewayWidth(road) / 2;
         const curbW = road.curbWidth;
-        const furnW = road.furnishingStripWidth;
-        const walkW = road.clearWalkWidth;
-
-        let dir: PathPoint;
-        if (waypointIndex === 0) {
-            dir = normalize(sub(path[1], path[0]));
-        } else if (waypointIndex >= path.length - 1) {
-            dir = normalize(sub(path[path.length - 1], path[path.length - 2]));
-        } else {
-            // At a joint, compute miter direction
-            const prevDir = normalize(sub(path[waypointIndex], path[waypointIndex - 1]));
-            const nextDir = normalize(sub(path[waypointIndex + 1], path[waypointIndex]));
-            // Use average direction for perpendicular calculation
-            const avgDir = normalize(add(prevDir, nextDir));
-            dir = avgDir;
-        }
-
-        const perp = perpCW(dir);
+        const leftKerbside = getKerbsideConfig(road, 'left');
+        const rightKerbside = getKerbsideConfig(road, 'right');
 
         return {
             center,
             // Carriageway edges
-            carrRight: add(center, scale(perp, halfC)),
-            carrLeft: add(center, scale(perp, -halfC)),
+            carrRight: this.computeOffsetAtWaypoint(path, waypointIndex, halfC),
+            carrLeft: this.computeOffsetAtWaypoint(path, waypointIndex, -halfC),
             // Curb outer edges
-            curbRight: add(center, scale(perp, halfC + curbW)),
-            curbLeft: add(center, scale(perp, -(halfC + curbW))),
+            curbRight: this.computeOffsetAtWaypoint(path, waypointIndex, halfC + curbW),
+            curbLeft: this.computeOffsetAtWaypoint(path, waypointIndex, -(halfC + curbW)),
             // Furnishing strip outer edges
-            furnRight: add(center, scale(perp, halfC + curbW + furnW)),
-            furnLeft: add(center, scale(perp, -(halfC + curbW + furnW))),
+            furnRight: this.computeOffsetAtWaypoint(path, waypointIndex, halfC + curbW + rightKerbside.width),
+            furnLeft: this.computeOffsetAtWaypoint(path, waypointIndex, -(halfC + curbW + leftKerbside.width)),
             // Sidewalk outer edges
-            walkRight: add(center, scale(perp, halfC + curbW + furnW + walkW)),
-            walkLeft: add(center, scale(perp, -(halfC + curbW + furnW + walkW))),
+            walkRight: this.computeOffsetAtWaypoint(path, waypointIndex, halfC + curbW + rightKerbside.width + rightKerbside.clearWalkWidth),
+            walkLeft: this.computeOffsetAtWaypoint(path, waypointIndex, -(halfC + curbW + leftKerbside.width + leftKerbside.clearWalkWidth)),
         };
+    }
+
+    private computeOffsetAtWaypoint(path: PathPoint[], waypointIndex: number, offset: number): PathPoint {
+        const center = path[waypointIndex];
+        if (waypointIndex === 0) {
+            const dir = normalize(sub(path[1], path[0]));
+            return add(center, scale(perpCW(dir), offset));
+        }
+        if (waypointIndex >= path.length - 1) {
+            const dir = normalize(sub(path[path.length - 1], path[path.length - 2]));
+            return add(center, scale(perpCW(dir), offset));
+        }
+
+        const prevDir = normalize(sub(path[waypointIndex], path[waypointIndex - 1]));
+        const nextDir = normalize(sub(path[waypointIndex + 1], path[waypointIndex]));
+        const joint = computeMiterJoint(prevDir, nextDir, center, Math.abs(offset));
+        return offset >= 0 ? joint.right : joint.left;
     }
 
     // ===== CARRIAGEWAY =====
@@ -136,49 +141,130 @@ export class PathRoadBuilder {
         mesh.userData.hoverLabel = road.name;
         mesh.userData.hoverType = 'Road';
         scene.add(mesh);
-
-        // Lane markings as a separate overlay
-        this.buildLaneMarkings(scene, seg, road, start, end, cumulativeLen, segLen);
     }
 
-    private buildLaneMarkings(
+    private buildLaneFeatures(
         scene: THREE.Scene,
+        path: PathPoint[],
+        segmentIndex: number,
         seg: Segment,
         road: RoadSegmentConfig,
-        start: CrossSectionVertices,
-        end: CrossSectionVertices,
         cumulativeLen: number,
         segLen: number
     ): void {
-        const markingWidth = 0.3;
+        const laneLayout = getLaneLayout(road);
+        const halfC = getCarriagewayWidth(road) / 2;
         const dir = normalize(sub(seg.p1, seg.p0));
         const perp = perpCW(dir);
+        const markingWidth = 0.18;
+        let offset = -halfC;
 
-        if (road.type === 'boulevard') {
-            // Double yellow center line
-            for (const offset of [-0.3, 0.3]) {
-                this.buildDashedLine(scene, seg, perp, offset, markingWidth * 0.6, 0xCCAA00, cumulativeLen, segLen, 3, 3);
+        for (let i = 0; i < laneLayout.length; i++) {
+            const lane = laneLayout[i];
+            const laneLeft = offset;
+            const laneRight = offset + lane.width;
+
+            if (lane.kind !== 'general') {
+                this.buildLaneSurface(scene, path, segmentIndex, lane, laneLeft, laneRight);
             }
-            // Lane dividers for 2-lane sides
-            const laneOffset = road.laneWidth;
-            this.buildDashedLine(scene, seg, perp, laneOffset, markingWidth, 0xCCCCCC, cumulativeLen, segLen, 3, 6);
-            this.buildDashedLine(scene, seg, perp, -laneOffset, markingWidth, 0xCCCCCC, cumulativeLen, segLen, 3, 6);
-        } else if (road.type === 'main') {
-            // Double yellow center line
-            for (const offset of [-0.2, 0.2]) {
-                this.buildDashedLine(scene, seg, perp, offset, markingWidth * 0.5, 0xCCAA00, cumulativeLen, segLen, 3, 3);
+
+            if (i < laneLayout.length - 1) {
+                const nextLane = laneLayout[i + 1];
+                const boundaryOffset = laneRight;
+                const separator = this.getLaneSeparator(lane, nextLane);
+                this.buildDashedLine(
+                    scene,
+                    seg,
+                    perp,
+                    boundaryOffset,
+                    separator.width,
+                    separator.color,
+                    cumulativeLen,
+                    segLen,
+                    separator.dashLen,
+                    separator.gapLen
+                );
             }
-        } else if (road.type === 'secondary') {
-            // Dashed white center line
-            this.buildDashedLine(scene, seg, perp, 0, markingWidth, 0xCCCCCC, cumulativeLen, segLen, 3, 6);
+
+            offset = laneRight;
         }
-        // Lanes have no center markings
 
-        // Edge lines (subtle)
-        const halfC = road.carriagewayWidth / 2;
-        for (const side of [-1, 1]) {
-            const offset = side * (halfC - markingWidth / 2);
-            this.buildDashedLine(scene, seg, perp, offset, markingWidth * 0.5, 0x888888, cumulativeLen, segLen, 100, 0);
+        const leftKerbside = getKerbsideConfig(road, 'left');
+        const rightKerbside = getKerbsideConfig(road, 'right');
+        this.buildKerbMarking(scene, seg, -halfC + 0.3, leftKerbside.marking, cumulativeLen, segLen);
+        this.buildKerbMarking(scene, seg, halfC - 0.3, rightKerbside.marking, cumulativeLen, segLen);
+    }
+
+    private buildLaneSurface(
+        scene: THREE.Scene,
+        path: PathPoint[],
+        segmentIndex: number,
+        lane: LaneConfig,
+        laneLeft: number,
+        laneRight: number
+    ): void {
+        const leftStart = this.computeOffsetAtWaypoint(path, segmentIndex, laneLeft);
+        const rightStart = this.computeOffsetAtWaypoint(path, segmentIndex, laneRight);
+        const leftEnd = this.computeOffsetAtWaypoint(path, segmentIndex + 1, laneLeft);
+        const rightEnd = this.computeOffsetAtWaypoint(path, segmentIndex + 1, laneRight);
+
+        const color = lane.kind === 'bus' ? 0x8A1F1F : 0x2D7A46;
+        const label = lane.kind === 'bus' ? 'Bus Lane' : 'Cycle Lane';
+        const mesh = new THREE.Mesh(
+            this.createQuadGeometry(leftStart, rightStart, leftEnd, rightEnd, 0.012),
+            new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.55 })
+        );
+        mesh.receiveShadow = true;
+        mesh.userData.hoverLabel = label;
+        mesh.userData.hoverType = 'Road';
+        scene.add(mesh);
+    }
+
+    private getLaneSeparator(leftLane: LaneConfig, rightLane: LaneConfig): {
+        color: number;
+        dashLen: number;
+        gapLen: number;
+        width: number;
+    } {
+        if (leftLane.kind === 'cycle' || rightLane.kind === 'cycle') {
+            return { color: 0xFFFFFF, dashLen: 100, gapLen: 0, width: 0.14 };
+        }
+        if (leftLane.direction !== rightLane.direction) {
+            return { color: 0xF4F4F4, dashLen: 4, gapLen: 4, width: 0.16 };
+        }
+        if (leftLane.kind === 'bus' || rightLane.kind === 'bus') {
+            return { color: 0xF4F4F4, dashLen: 6, gapLen: 3, width: 0.14 };
+        }
+        return { color: 0xF4F4F4, dashLen: 3, gapLen: 6, width: 0.12 };
+    }
+
+    private buildKerbMarking(
+        scene: THREE.Scene,
+        seg: Segment,
+        offset: number,
+        marking: KerbMarking,
+        cumulativeLen: number,
+        segLen: number
+    ): void {
+        switch (marking) {
+            case 'single_yellow':
+                this.buildDashedLine(scene, seg, perpCW(normalize(sub(seg.p1, seg.p0))), offset, 0.12, 0xD7B400, cumulativeLen, segLen, 100, 0);
+                break;
+            case 'double_yellow':
+                for (const delta of [-0.12, 0.12]) {
+                    this.buildDashedLine(scene, seg, perpCW(normalize(sub(seg.p1, seg.p0))), offset + delta, 0.1, 0xD7B400, cumulativeLen, segLen, 100, 0);
+                }
+                break;
+            case 'single_red':
+                this.buildDashedLine(scene, seg, perpCW(normalize(sub(seg.p1, seg.p0))), offset, 0.14, 0xC71F25, cumulativeLen, segLen, 100, 0);
+                break;
+            case 'double_red':
+                for (const delta of [-0.14, 0.14]) {
+                    this.buildDashedLine(scene, seg, perpCW(normalize(sub(seg.p1, seg.p0))), offset + delta, 0.12, 0xC71F25, cumulativeLen, segLen, 100, 0);
+                }
+                break;
+            default:
+                break;
         }
     }
 

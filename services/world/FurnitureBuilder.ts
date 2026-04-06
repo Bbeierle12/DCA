@@ -1,17 +1,20 @@
 import * as THREE from 'three';
-import { WorldConfig, ZoneType } from './WorldConfigV2';
+import { WorldConfig, ZoneType, KerbsideConfig, getCarriagewayWidth, getKerbsideConfig } from './WorldConfigV2';
 import { ZoneMapV2 } from './ZoneMapV2';
 import {
     polylineLength, samplePolyline, perpCW, add, scale,
 } from './RoadGeometry';
+import { SeededRandom } from './SeededRandom';
 
 export class FurnitureBuilder {
     private config: WorldConfig;
     private zoneMap: ZoneMapV2;
+    private random: SeededRandom;
 
     constructor(config: WorldConfig, zoneMap: ZoneMapV2) {
         this.config = config;
         this.zoneMap = zoneMap;
+        this.random = new SeededRandom(config.randomSeed ^ 0x9E3779B9);
     }
 
     build(scene: THREE.Scene): void {
@@ -34,13 +37,13 @@ export class FurnitureBuilder {
         roadIndex: number,
         spacing: number,
         side: number,        // -1 = left, 1 = right
-        callback: (x: number, z: number, angle: number) => void
+        callback: (x: number, z: number, angle: number, kerbside: KerbsideConfig) => void
     ): void {
         const road = this.config.roads[roadIndex];
-        const halfC = road.carriagewayWidth / 2;
+        const halfC = getCarriagewayWidth(road) / 2;
         const curbW = road.curbWidth;
-        const furnW = road.furnishingStripWidth;
-        const offset = side * (halfC + curbW + furnW / 2);
+        const kerbside = getKerbsideConfig(road, side < 0 ? 'left' : 'right');
+        const offset = side * (halfC + curbW + kerbside.width / 2);
         const totalLen = polylineLength(road.path);
         const clearance = this.config.furniture.intersectionClearance;
 
@@ -56,7 +59,7 @@ export class FurnitureBuilder {
             if (this.zoneMap.isInZone(pos.x, pos.z, ZoneType.SIGHT_TRIANGLE)) continue;
 
             const angle = Math.atan2(sample.direction.z, sample.direction.x);
-            callback(pos.x, pos.z, angle);
+            callback(pos.x, pos.z, angle, kerbside);
         }
     }
 
@@ -98,7 +101,8 @@ export class FurnitureBuilder {
 
         for (let i = 0; i < this.config.roads.length; i++) {
             // Benches only on one side to avoid clutter
-            this.placeAlongRoad(i, spacing, -1, (x, z, angle) => {
+            this.placeAlongRoad(i, spacing, -1, (x, z, angle, kerbside) => {
+                if (kerbside.use !== 'planting' && kerbside.use !== 'parking') return;
                 const bench = this.createBench();
                 bench.position.set(x, 0, z);
                 bench.rotation.y = angle;
@@ -136,7 +140,8 @@ export class FurnitureBuilder {
         const spacing = this.config.furniture.hydrantSpacing;
 
         for (let i = 0; i < this.config.roads.length; i++) {
-            this.placeAlongRoad(i, spacing, 1, (x, z, _angle) => {
+            this.placeAlongRoad(i, spacing, 1, (x, z, _angle, kerbside) => {
+                if (kerbside.use === 'transit_stop') return;
                 const fh = this.createFireHydrant();
                 fh.position.set(x, 0, z);
                 scene.add(fh);
@@ -155,9 +160,8 @@ export class FurnitureBuilder {
             if (road.type === 'boulevard' || road.type === 'main') continue;
 
             for (const side of [-1, 1]) {
-                this.placeAlongRoad(i, spacing, side, (x, z, _angle) => {
-                    // Only in furnishing strips
-                    if (!this.zoneMap.isInZone(x, z, ZoneType.FURNISHING_STRIP)) return;
+                this.placeAlongRoad(i, spacing, side, (x, z, _angle, kerbside) => {
+                    if (kerbside.use !== 'parking' && kerbside.use !== 'loading') return;
                     const bollard = this.createBollard();
                     bollard.position.set(x, 0, z);
                     scene.add(bollard);
@@ -176,12 +180,14 @@ export class FurnitureBuilder {
             if (road.type === 'lane') continue; // Too narrow
 
             const totalLen = polylineLength(road.path);
-            const d = totalLen * 0.4 + Math.random() * totalLen * 0.2;
+            const d = totalLen * 0.4 + this.random.next() * totalLen * 0.2;
             const sample = samplePolyline(road.path, d);
             if (!sample) continue;
 
             const perp = perpCW(sample.direction);
-            const offset = road.carriagewayWidth / 2 + road.curbWidth + road.furnishingStripWidth / 2;
+            const kerbside = getKerbsideConfig(road, 'right');
+            if (kerbside.use !== 'loading' && kerbside.use !== 'transit_stop') continue;
+            const offset = getCarriagewayWidth(road) / 2 + road.curbWidth + kerbside.width / 2;
             const pos = add(sample.point, scale(perp, offset));
 
             if (this.zoneMap.isNearIntersection(pos.x, pos.z, 15)) continue;
@@ -201,12 +207,14 @@ export class FurnitureBuilder {
         for (let i = 0; i < this.config.roads.length && placed < count; i++) {
             const road = this.config.roads[i];
             const totalLen = polylineLength(road.path);
-            const d = totalLen * 0.6 + Math.random() * totalLen * 0.3;
+            const d = totalLen * 0.6 + this.random.next() * totalLen * 0.3;
             const sample = samplePolyline(road.path, d);
             if (!sample) continue;
 
             const perp = perpCW(sample.direction);
-            const offset = road.carriagewayWidth / 2 + road.curbWidth + road.furnishingStripWidth * 0.8;
+            const kerbside = getKerbsideConfig(road, 'left');
+            if (kerbside.use !== 'parking' && kerbside.use !== 'loading') continue;
+            const offset = getCarriagewayWidth(road) / 2 + road.curbWidth + kerbside.width * 0.8;
             const pos = add(sample.point, scale(perp, -offset)); // opposite side from phone boxes
 
             if (this.zoneMap.isNearIntersection(pos.x, pos.z, 15)) continue;
