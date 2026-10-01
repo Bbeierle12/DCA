@@ -10,7 +10,10 @@ from dca import movement
 from game import input as game_input
 
 _instance = None
-FRAME_CAP = 0.0  # fps; 0 = uncapped. Scenarios and play can pass --cap N.
+# Frame limiter, fps (0 = uncapped; override with --cap N). Streets on Brandon's PC (C3 sweep,
+# variable time step): uncapped 77-80 fps avg with 1%-lows of 34-58 run to run; capped at 75 the
+# 1%-lows were 47-53 in both runs, with no frame over 22 ms in the second.
+FRAME_CAP = 75.0
 
 
 def clock() -> float:
