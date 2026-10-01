@@ -66,21 +66,19 @@ def add_sun_and_camera(scene: bpy.types.Scene) -> None:
     scene.camera = cam
 
 
+TEMPLATE = Path(__file__).resolve().parent / "templates" / "game_driver.blend"
+
+
 def add_game_driver(scene: bpy.types.Scene) -> bpy.types.Object:
-    """An empty whose Always sensor runs game.boot.tick every frame."""
-    driver = bpy.data.objects.new("Game", None)
+    """Appends the Game empty whose Always sensor runs game.boot.tick every frame.
+
+    The logic bricks come from a template because UPBGE 0.50 crashes when logic operators run in
+    background mode (see tools/make_driver_template.py).
+    """
+    with bpy.data.libraries.load(str(TEMPLATE), link=False) as (src, dst):
+        dst.objects = ["Game"]
+    driver = dst.objects[0]
     scene.collection.objects.link(driver)
-    if not is_upbge():
-        return driver
-    with bpy.context.temp_override(object=driver, active_object=driver):
-        bpy.ops.logic.sensor_add(type="ALWAYS", object=driver.name)
-        bpy.ops.logic.controller_add(type="PYTHON", object=driver.name)
-    sensor = driver.game.sensors[-1]
-    sensor.use_pulse_true_level = True
-    controller = driver.game.controllers[-1]
-    controller.mode = "MODULE"
-    controller.module = "game.boot.tick"
-    sensor.link(controller)
     return driver
 
 

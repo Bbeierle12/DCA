@@ -27,3 +27,8 @@ def test_build_replaces_whatever_was_in_the_scene(tmp_path: Path):
     assert "Cube" in bpy.data.objects
     build_game.build(tmp_path / "dca.blend")
     assert "Cube" not in bpy.context.scene.objects
+
+
+def test_driver_comes_from_the_template():
+    assert build_game.TEMPLATE.exists()
+    assert build_game.TEMPLATE.stat().st_size > 10_000
