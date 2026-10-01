@@ -19,9 +19,13 @@ Windows PC. Plan and loop: `PLAN.md`, `LOOP.md`, `LOG.md`. Brandon directs archi
 
 ## Commands
 
-- Setup: `uv venv --python 3.10 .venv` then `uv pip install -e ".[dev]"` (bpy 3.6.0 comes from
-  Blender's own index, configured in `pyproject.toml`; with plain pip add
-  `--extra-index-url https://download.blender.org/pypi/`). Game code must run on Python 3.10.
+- Setup (sandbox): `uv venv --python 3.10 .venv` then `uv pip install -e ".[dev,bpy]"` (bpy 3.6.0
+  comes from Blender's own index, configured in `pyproject.toml`). Game code must run on 3.10.
+- Setup (Brandon's PC): `$env:UV_PYTHON_INSTALL_DIR = "<repo>\.upbge\python"` (the Claude app
+  virtualises AppData, which breaks uv's own Python links), `uv python install 3.10`,
+  `uv venv --python 3.10 --managed-python .venv`, `uv pip install -e ".[dev]"`. Blender's index
+  answers the PC with a Cloudflare challenge, so there `verify.py` runs pytest inside UPBGE's
+  Blender (same Python 3.10, same Blender line).
 - `python scripts/verify.py` - ruff + pytest. The loop's gate everywhere.
 - `python scripts/verify.py --upbge` - also builds in UPBGE headless and runs every scenario
   with `blenderplayer` (Brandon's PC only; a game window opens for each scenario).

@@ -9,8 +9,11 @@ dependencies = []
 dev = [
     "pytest>=8",
     "ruff>=0.6",
-    # Same Blender line as UPBGE 0.36.1 (built on 3.6.2; D11): scene-building code runs headless
-    # anywhere. bpy 3.6 is on Blender's own index, not PyPI (see [tool.uv.sources]).
+]
+# Same Blender line as UPBGE 0.36.1 (built on 3.6.2; D11): scene-building code runs headless
+# anywhere. bpy 3.6 is on Blender's own index, not PyPI (see [tool.uv.sources]). Where that
+# index is unreachable, scripts/verify.py runs the tests inside UPBGE's Blender instead.
+bpy = [
     "bpy==3.6.0",
 ]
 
