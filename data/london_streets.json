@@ -1,0 +1,15 @@
+{
+ "schema": 1,
+ "source": "web/scripts/export_glb.mjs",
+ "bytes": 4741616,
+ "meshes": 140,
+ "materials": 23,
+ "vertsBefore": 389152,
+ "vertsAfter": 104032,
+ "batch": {
+  "meshesIn": 4491,
+  "meshesOut": 140,
+  "skipped": 1,
+  "materials": 22
+ }
+}

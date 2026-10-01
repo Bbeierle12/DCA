@@ -28,6 +28,7 @@ Windows PC. Plan and loop: `PLAN.md`, `LOOP.md`, `LOG.md`. Brandon directs archi
   `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` for the e2e step.
 - Map data: `cd web && npm run export:map` rewrites `data/london.json`, `data/zones.json` and
   `data/probes.json` (golden answers the Python port in `dca/world/` is tested against).
+  `npm run export:glb` (headless Chromium) rewrites `data/london_streets.glb` + `.json` stats.
 
 ## Conventions
 

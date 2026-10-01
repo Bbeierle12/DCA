@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "size": "node scripts/size.mjs 350",
     "verify": "npm run typecheck && npm test && npm run build && npm run size && npm run e2e",
-    "export:map": "vite-node scripts/export_map.ts"
+    "export:map": "vite-node scripts/export_map.ts",
+    "export:glb": "node scripts/export_glb.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

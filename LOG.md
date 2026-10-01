@@ -159,3 +159,19 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
   grid samples cell centres; crosswalk is never painted.
 - verify OK (21 tests). web verify green (170 unit, 15 e2e, 232 KB gzip); in the sandbox e2e
   needs `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
+
+## 2026-10-01 - B2 street geometry export
+
+- `npm run export:glb` (`web/scripts/export_glb.mjs`): Vite dev server + headless Chromium open
+  `scripts/export_glb.html`, which builds the world with the game's `WorldBuilder` + static
+  batcher, converts Lambert to rough non-metal standard materials (basic stays unlit),
+  re-indexes geometry (389k -> 104k vertices), names objects `street_c<cx>_<cz>_m<i>` /
+  `ground_0` with glTF extras (`dca`, `chunk`, `material`, `walkable`), and writes
+  `data/london_streets.glb` (4.7 MB) plus `data/london_streets.json` stats.
+- bpy imports it in ~0.8 s: 140 mesh objects, 23 materials, 10 canvas textures (64-128 px),
+  130k faces; axes land as planned (x 0..800, y 0..-800). The importer wires Color Attribute
+  -> Base Color for flat materials but not texture x vertex colour (fine: textured batches
+  are white); B3 rebuilds materials anyway.
+- Content is deterministic but bytes are not: images finish encoding in varying order, so
+  bufferView order changes between runs. Don't use the file hash as a change detector.
+- verify OK (26 tests). web verify green.
