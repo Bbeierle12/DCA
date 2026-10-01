@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
 RESULTS = BUILD / "results"
-WINDOW = ("1920", "1080")
+WINDOW = ("1280", "720")
 SCENARIO_TIMEOUT = 300
 
 

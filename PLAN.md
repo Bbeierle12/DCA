@@ -25,9 +25,9 @@ Brandon then runs check 7 and sets `STATUS: COMPLETE`.
    scenario. `cargo test --workspace` in `server/` passes.
 2. **Scale is real:** 1 Blender unit = 1 m. Player 1.75 m +/- 0.05; door openings >= 1.1 m wide
    and >= 2.2 m tall; storey height 3.0 m. Each asserted by an automated test.
-3. **Performance on Brandon's PC** (AMD Radeon integrated graphics, 1920x1080, windowed,
-   UPBGE 0.50): average >= 60 fps and 1%-low >= 45 fps at spawn, Oxford Circus and inside the
-   shop, measured by the scenario harness over 10 s at each spot.
+3. **Performance on Brandon's PC** (AMD Radeon integrated graphics, 1280x720, windowed,
+   UPBGE 0.50; D10): average >= 60 fps and 1%-low >= 45 fps at spawn, Oxford Circus and inside
+   the shop, measured by the scenario harness over 10 s at each spot.
 4. **Gameplay, scripted end to end** (UPBGE scenario harness, no human input):
    - a. A new game spawns the player on a pavement; the HUD shows a real place name.
    - b. Holding forward for 2 s moves the player 6 m +/- 10% (walk speed 3 m/s).
@@ -61,13 +61,10 @@ Brandon then runs check 7 and sets `STATUS: COMPLETE`.
   2026-01-06, built on Blender 5.0.1). Pinned; upgrading is a decision, not a task.
 - **D8 Platform.** DECIDED 2026-10-01: Brandon's Windows PC, keyboard and mouse. Phones are not
   a target.
-- **D10 Goal 3 resolution vs. Brandon's hardware.** OPEN (raised 2026-10-01 by A4).
-  The PC is a Ryzen 3 4300U with integrated Radeon graphics. An almost empty scene (ground +
-  sun, default EEVEE settings) measures avg 65 / 1%-low 16 fps at 1920x1080, 80 / 23 at
-  1600x900 and 112 / 36 at 1280x720. The full city at 1080p will not reach 60 fps on defaults.
-  Proposal: B5 first tunes EEVEE (shadows, AO, reflections, bloom off or reduced); if 1080p
-  still misses, change goal 3 to 1280x720 at >= 60 fps avg / >= 45 1%-low (or 1080p at 30).
-  Needs Brandon's call before Phase B's exit is judged.
+- **D10 Goal 3 resolution vs. Brandon's hardware.** DECIDED 2026-10-01 (Brandon): 1280x720 at
+  >= 60 fps avg / >= 45 1%-low. Context: the PC is a Ryzen 3 4300U with integrated Radeon
+  graphics; an almost empty scene measured avg 65 / 1%-low 16 fps at 1920x1080, 80 / 23 at
+  1600x900 and 112 / 36 at 1280x720. The game window and the harness run at 1280x720.
 - **D9 The three.js prototype** (Phases 0-1 of plan v1, `web/` after A2) is retired as a game.
   It stays only as the source of the London street data and geometry until a Python
   generator replaces it (backlog).

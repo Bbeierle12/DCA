@@ -86,7 +86,7 @@ def configure_engine(scene: bpy.types.Scene) -> None:
     if not hasattr(scene, "game_settings"):
         return
     gs = scene.game_settings
-    gs.resolution_x, gs.resolution_y = 1920, 1080
+    gs.resolution_x, gs.resolution_y = 1280, 720
     # Uncapped so the harness measures what the PC can actually do; play builds may cap later.
     gs.use_frame_rate = False
     gs.vsync = "OFF"

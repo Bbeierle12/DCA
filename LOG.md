@@ -137,3 +137,9 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
   warm-up 2.7 s. Earlier run of the same build: 65 / 16. Expect run-to-run variance on this
   laptop chip (power/thermal state); judge performance over several runs, not one.
 - Next: Phase B (London in Blender). B1-B4 run in the sandbox; B5 needs the PC and D10.
+
+## 2026-10-01 - D10 decided
+
+Brandon chose 1280x720 at >= 60 fps avg / >= 45 1%-low for goal 3. Completion goal 3 and D10
+updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
+`scripts/upbge_run.py` opens the player window at 1280x720. verify OK (13 tests).
