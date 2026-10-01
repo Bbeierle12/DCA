@@ -65,6 +65,15 @@ Brandon then runs check 7 and sets `STATUS: COMPLETE`.
   >= 60 fps avg / >= 45 1%-low. Context: the PC is a Ryzen 3 4300U with integrated Radeon
   graphics; an almost empty scene measured avg 65 / 1%-low 16 fps at 1920x1080, 80 / 23 at
   1600x900 and 112 / 36 at 1280x720. The game window and the harness run at 1280x720.
+- **D11 Renderer cost vs. goal 3.** OPEN (raised 2026-10-01 by B5). With the camera turning (the
+  streets scenario), UPBGE 0.50's EEVEE spends ~16 ms per frame at 1280x720 on Brandon's
+  Radeon iGPU even for a scene that is only the ground plane with shadows, fast GI and TAA off
+  (59 fps avg). The full city measures 38-43 fps avg on defaults and 44-50 fps with those
+  features off; 960x540 gives 66-76 fps avg. 1%-lows are 6-37 fps in every variant. The cost
+  scales with pixels, not with content, so goal 3 at 720p is not reachable on UPBGE 0.50 by
+  tuning. Options: (a) test UPBGE 0.36.1 (Blender 3.6, legacy EEVEE, a much cheaper forward
+  renderer) and switch D7 if it holds 720p/60; (b) stay on 0.50 and change goal 3 to 960x540
+  at 60; (c) stay on 0.50 at 720p with a 30 fps target. Needs Brandon's call; B5 waits.
 - **D9 The three.js prototype** (Phases 0-1 of plan v1, `web/` after A2) is retired as a game.
   It stays only as the source of the London street data and geometry until a Python
   generator replaces it (backlog).
@@ -117,12 +126,12 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
   districts) and `data/zones.json` (2 m zone grid). AC: Python loader test round-trips counts.
 - [x] B2 (94bdf18; 4.7 MB, 140 meshes, 23 materials, 104k verts; imports in bpy in 0.8 s) Export the generated street geometry as `data/london_streets.glb` (batched, vertex
   colours, shared textures) using headless Chromium. AC: file <= 15 MB; loads in bpy.
-- [~] B3 (bb2240d sandbox-green: 140 objects, 129.7k faces, 23 materials valid; UPBGE build pending on Brandon's PC) `tools/build_world.py` (bpy): import the streets, organise collections, EEVEE
+- [x] B3 (bb2240d; 140 objects, 129.7k faces, 23 materials valid; UPBGE build + physics ray casts OK on Brandon's PC) `tools/build_world.py` (bpy): import the streets, organise collections, EEVEE
   materials from vertex colours, static physics on walkable surfaces, save `build/dca.blend`.
   AC: bpy test checks 800 m extent, object budget, every material valid.
 - [x] B4 (17937a8; 2214/2214 probe names and 10/10 spawn searches match the TS) Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
   cases as the prototype ((430, 260) -> "Oxford Circus", spawn on `clear_walk`).
-- [ ] B5 Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
+- [!] B5 (blocked on D11: EEVEE in UPBGE 0.50 costs ~16 ms/frame at 720p on this GPU with only a ground plane; full city 42-50 fps) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
   goal 3 (join by material per chunk, instancing for props, LOD or culling if needed).
 
 Exit: the world loads in UPBGE and meets goal 3 with an empty street.

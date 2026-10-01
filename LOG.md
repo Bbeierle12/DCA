@@ -199,3 +199,28 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
   "Oxford Circus"; `spawn_point()` is on a clear-walk cell.
 - Parity: all 2214 probe place names and all 10 spawn searches (2 of which find nothing within
   80 m, e.g. deep in Hyde Park) equal the TS answers. verify OK (50 tests).
+
+## 2026-10-01 - B3 proven in UPBGE; B5 baseline blocked (D11)
+
+- On Brandon's PC `verify.py --upbge`: UPBGE builds the world from the glb, smoke passes
+  (avg 130 fps with the static camera), the streets scenario finds the world (140 objects), a
+  pavement spawn via `dca.world` inside UPBGE, and physics ray casts hit the street surfaces.
+  The first run stood the camera inside the Piccadilly/Trafalgar island monuments; spots are
+  now the nearest pavements (ef9b9f1). Harness records UPBGE's frame profile per window.
+- B5 sweep (streets scenario, camera turning 360 deg over 10 s at 4 spots, 1280x720 unless
+  noted; avg fps range across spots, 1%-low range):
+  - defaults: 38-43 avg, 6-33 low
+  - fast GI off: 42-43; + shadow res 0.5 / sun 5 cm texels: 39-44; + flat things cast no
+    shadow: 42-43; shadow steps/rays 1: 44-50; shadows off: 39-46; TAA off: 36-40
+  - minimal (fast GI, shadows, TAA off): 44-50 avg, 11-36 low; Rasterizer 20.7 ms of 23 ms
+  - minimal without props: 47-51; minimal with only the ground plane: 59 avg, 14-37 low,
+    Rasterizer 16.2 ms
+  - minimal at 960x540: 69-70 avg, 21-37 low (Rasterizer 12.5 ms); defaults at 960x540:
+    66-76 avg, 9-37 low
+  - `render.resolution_percentage = 50` has no effect in the player; `use_viewport_render`
+    draws nothing useful in the standalone player (800+ fps, Rasterizer 0.03 ms).
+- Conclusion: EEVEE in UPBGE 0.50 has a ~16 ms per-frame floor at 720p on this GPU when the
+  view changes (static views are cheap because nothing re-renders, which is why A4's smoke
+  numbers looked fine). Raised D11; B5 marked `[!]`. PC power plan: Balanced; GPU driver
+  31.0.21925.1001 (2026-05-19). Other apps were running during the sweep (Claude, Blender).
+- `dca.egg-info` is no longer tracked (build output).
