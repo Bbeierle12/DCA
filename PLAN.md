@@ -1,204 +1,197 @@
-# DCA Revival Plan
+# DCA Plan (v2: UPBGE build)
 
 STATUS: IN_PROGRESS
 
 This file is the loop's single source of truth. Every iteration reads it, does exactly one
-task, proves it with `npm run verify` (plus `cargo test` once the server exists), checks the
-box with evidence, and commits. See `LOOP.md` for the iteration protocol and `CLAUDE.md` for
-commands and conventions.
+task, proves it with the verify gate, checks the box with evidence, and commits. See
+`LOOP.md` for the iteration protocol and `CLAUDE.md` for commands and conventions.
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done (evidence in parentheses) · `[!]` blocked (reason)
 
 ## Vision (v1 "Walk-in London")
 
-A one-or-two-player web game on a living West End street map. You earn money (courier jobs,
-then rent and shop income), buy plots and buildings, build and furnish them with a Blender-made
-kit, and walk into any building. Built for Brandon's Pixel 10 Pro XL first.
+A one-or-two-player game built in Blender and run with UPBGE (Blender's game engine fork),
+played on Brandon's Windows PC with keyboard and mouse. A living West End street map where
+you earn money (courier jobs, then rent and shop income), buy plots and buildings, build and
+furnish them with a Blender-made kit, and walk into any building.
 
 ## Completion goal (Definition of Done)
 
-The loop sets `STATUS: READY_FOR_DEVICE_CHECK` when **all** of 1-6 hold on a clean checkout.
+The loop sets `STATUS: READY_FOR_PLAY_CHECK` when **all** of 1-6 hold on a clean checkout.
 Brandon then runs check 7 and sets `STATUS: COMPLETE`.
 
-1. **Gates green:** `npm run verify` (typecheck, unit + coverage thresholds, build, e2e) and
-   `cargo test --workspace` in `server/` both pass.
-2. **Scale is real:** 1 unit = 1 m. Player height 1.75 m ± 0.05; door openings >= 1.1 m wide and
-   >= 2.2 m tall; storey height 3.0 m. Each asserted by an automated test.
-3. **Performance budget** (read from `window.__dca.renderInfo()` at 1280x720, at spawn, at
-   Oxford Circus and inside the shop): draw calls <= 300, triangles <= 400k, active lights <= 4,
-   shader programs stable when entering/leaving buildings (no recompiles). Main JS bundle
-   <= 350 KB gzip (assets excluded). Kit `.glb` files <= 2 MB total.
-4. **Gameplay, scripted end to end (Playwright, headless):**
-   - a. New game spawns on a pavement; the HUD shows a real place name from the map.
-   - b. The player moves with the keyboard and with the on-screen joystick (touch emulation)
-     from the very first frame.
-   - c. Walk through the food shop's door, buy food: energy refills and money drops by the price.
-   - d. Climb the stairs to the upper floor (player y >= 2.9 m) and walk back out to the street.
-   - e. Take a courier job, deliver it: money rises by exactly the quoted fare.
-   - f. Buy a for-sale building, place >= 3 kit pieces in it, reload the page: everything persists.
-   - g. Second browser joins the first via a room code on the Rust server; each sees the other
+1. **Gates green:** `python scripts/verify.py` passes (pytest: logic, data and the bpy world
+   build), and on Brandon's PC `python scripts/verify.py --upbge` also passes every UPBGE
+   scenario. `cargo test --workspace` in `server/` passes.
+2. **Scale is real:** 1 Blender unit = 1 m. Player 1.75 m +/- 0.05; door openings >= 1.1 m wide
+   and >= 2.2 m tall; storey height 3.0 m. Each asserted by an automated test.
+3. **Performance on Brandon's PC** (AMD Radeon integrated graphics, 1920x1080, windowed,
+   UPBGE 0.50): average >= 60 fps and 1%-low >= 45 fps at spawn, Oxford Circus and inside the
+   shop, measured by the scenario harness over 10 s at each spot.
+4. **Gameplay, scripted end to end** (UPBGE scenario harness, no human input):
+   - a. A new game spawns the player on a pavement; the HUD shows a real place name.
+   - b. Holding forward for 2 s moves the player 6 m +/- 10% (walk speed 3 m/s).
+   - c. Walk through the food shop's door, buy food: energy refills, money drops by the price.
+   - d. Climb the stairs to the upper floor (player z >= 2.9 m) and walk back out to the street.
+   - e. Take a courier job and deliver it: money rises by exactly the quoted fare.
+   - f. Buy a for-sale building, place >= 3 kit pieces in it, quit and relaunch: all persists.
+   - g. A second game instance joins via a room code on the Rust server; each sees the other
      move; a piece placed by P1 appears for P2 within 500 ms; after a server restart the world
      is still there.
-5. **Camera is never inside geometry** during the scripted walk in 4c-4d (checked every frame).
-6. **No regressions:** no page errors or console errors during any e2e run; coverage thresholds
-   only ratchet upward.
-7. **Device check (Brandon, human gate):** on the Pixel in Chrome: no visible stutter at spawn,
-   Oxford Circus or indoors; one-handed touch controls work; text is legible.
+5. **Camera is never inside geometry** during the scenario in 4c-4d (checked every frame).
+6. **Ships as a runtime:** the exported `DCA.exe` (Save As Game Engine Runtime) starts and
+   passes the smoke scenario.
+7. **Play check (Brandon, human gate):** he plays it on his PC and it feels right.
 
 ## Decisions
 
 - **D1 Where the game rules live** (money, plots, build validation, save format). OPEN.
-  Options: Rust core crate compiled to WASM and shared with the server, or TypeScript in the
-  client with the server only relaying. Blocks P3.1 only. If still open when P3.1 is next,
-  the loop marks P3.1 `[!]` and continues with Phase 4.
+  Recommended default: a pure Python package `dca/` that UPBGE imports and pytest tests
+  directly. Alternative: a Rust core loaded into UPBGE's bundled Python via PyO3 (shared with
+  the server, but fragile to build against Blender's Python). If still open when E1 is next,
+  the loop uses the default and notes it here.
 - **D2 Two-player mode** (co-op shared world vs. friendly rivals). OPEN. Default: shared
-  world, separate wallets. Blocks nothing before P5.4.
+  world, separate wallets. Blocks nothing before F4.
 - **D3 What "DCA" stands for.** OPEN (check the first prompt in AI Studio). Blocks nothing.
-- **D4 Combat.** DECIDED 2026-10-01: parked behind a feature flag (off). Code and tests kept.
-- **D5 Multiplayer transport.** DECIDED: Rust WebSocket server, no Firebase. 1-2 players.
+- **D4 Combat.** DECIDED 2026-10-01: not part of v1.
+- **D5 Multiplayer transport.** DECIDED: Rust server, no Firebase. 1-2 players.
 - **D6 Buildings are enterable.** DECIDED: every building can be entered; interiors are
   assembled on demand from the kit; furnished interiors for shops and owned buildings.
+- **D7 Engine.** DECIDED 2026-10-01: Blender is the engine. UPBGE 0.50 (stable, released
+  2026-01-06, built on Blender 5.0.1). Pinned; upgrading is a decision, not a task.
+- **D8 Platform.** DECIDED 2026-10-01: Brandon's Windows PC, keyboard and mouse. Phones are not
+  a target.
+- **D9 The three.js prototype** (Phases 0-1 of plan v1, `web/` after A2) is retired as a game.
+  It stays only as the source of the London street data and geometry until a Python
+  generator replaces it (backlog).
 
-## Baseline (2026-10-01, before the loop)
+## What carries over from the web prototype (plan v1, 2026-10-01)
 
-98 unit tests passing; 52% line coverage (thresholds not enforced); `ThreeGame.ts` 1,368 lines;
-world = 4,491 meshes, 2,891 materials, 0 instanced, 16 point lights, 1,467 shadow casters;
-bundle 1,296 KB / 339 KB gzip; player ~3.9 m tall; on-screen controls dead until a re-render.
+Metre scale and the 1.75 m player; the London street network (roads, junctions, landmark
+names, districts) and its zone map; place names and pavement spawn logic; the versioned save
+format with migrations; static batching (merge by material and chunk); the loop itself.
+The v1 log entries stay in `LOG.md` as history.
+
+## Key facts (verified 2026-10-01)
+
+- Brandon's PC: Windows 11, AMD Radeon integrated graphics, OpenGL 4.6. Blender 5.2.2 LTS is
+  installed (Microsoft Store) with the Blender MCP extension. UPBGE was not installed.
+- UPBGE 0.50 is built on Blender 5.0.1, so the PyPI wheel `bpy==5.0.1` (Python 3.11) runs the
+  same scene-building code headless anywhere, including the cloud sandbox. Game-only settings
+  (`object.game.*`, components, logic) exist only inside UPBGE, so build scripts guard them.
+- Character physics: `bge.constraints.getCharacter(obj)` -> `walkDirection`, `onGround`,
+  `jump()`, `maxSlope`, `gravity`, `fallSpeed`. Step height is a physics-panel setting.
+- Shipping: File > Export > Save As Game Engine Runtime (add-on) builds an `.exe` that needs
+  its whole folder.
 
 ---
 
-## Phase 0 - Loop infrastructure
+## Phase A - Toolchain
 
-- [x] P0.1 (e7de46a) Repo hygiene: ignore and untrack `coverage/`, `test-results/`, `playwright-report/`;
-  remove AI Studio leftovers (Gemini key `define` in `vite.config.ts`, `metadata.json`,
-  README boilerplate); fix the type error in `tests/setup.ts`; add `typecheck` script.
-  AC: `npx tsc --noEmit` exits 0; `git ls-files coverage` empty.
-- [x] P0.2 (9f36841) Debug API `window.__dca` (always available, read-mostly): `player()` (position,
-  velocity, floor), `renderInfo()` (calls, triangles, programs, lights, textures), `zone()`,
-  `teleport(x, z)`, `money()`, `ready` flag. AC: e2e reads every field.
-- [x] P0.3 (142cfb9) E2E harness: Playwright uses `PW_CHROMIUM_PATH` when set and software-GL flags;
-  helpers `startGame(page)`, `holdKey`, `waitForReady`; console/page-error collector that
-  fails the test. Smoke tests: menu, start game, canvas renders, keyboard moves the player.
-  AC: `npm run e2e` green.
-- [x] P0.4 (29e38fc; verify 95 s, threshold failure confirmed) `npm run verify` = typecheck + unit (coverage thresholds under
-  `coverage.thresholds`, set to the current baseline) + build + e2e. Bundle-size check script
-  prints gzip size. AC: verify green; a deliberately failing threshold fails it (checked once).
-- [x] P0.5 (f0306ec; Oxford Circus 2,968 draw calls) Record baseline metrics with the new tools in `LOG.md` (draw calls at spawn etc.).
+- [ ] A1 Install UPBGE 0.50 portable on Brandon's PC under `.upbge/` in the repo (gitignored);
+  record path and version in `tools/upbge.json`. AC: `upbge -b --python-expr` prints the
+  UPBGE version from a scripted check.
+- [ ] A2 Repo layout: move the three.js prototype to `web/` (its own `npm run verify` still
+  passes there); add `dca/` (pure Python package), `game/` (UPBGE components), `tools/`
+  (bpy build scripts), `data/` (exported map data), `tests/` (pytest). AC: tree matches;
+  web verify green from `web/`.
+- [ ] A3 Python project: `pyproject.toml` (Python 3.11, pytest, ruff, `bpy==5.0.1` as a test
+  dependency), `scripts/verify.py` running ruff + pytest. AC: verify green in the sandbox.
+- [ ] A4 UPBGE scenario harness: `game/harness.py` component reads a scenario name from the
+  command line, drives inputs, samples state and frame times each frame, writes
+  `build/results/<scenario>.json`, then ends the game. `scripts/verify.py --upbge` builds the
+  .blend in UPBGE headless and runs every scenario with the standalone player. AC: a smoke
+  scenario (load, 120 frames, report fps) passes on Brandon's PC.
+- [ ] A5 Loop files for the new stack (LOOP.md, CLAUDE.md, `scripts/loop.ps1`).
 
-Exit: `npm run verify` green and fast enough for a loop (< 5 min). PROVEN 2026-10-01 (95 s).
+Exit: `python scripts/verify.py` green in the sandbox and `--upbge` green on Brandon's PC.
 
-## Phase 1 - Stabilise the client
+## Phase B - London in Blender
 
-- [x] P1.1 (bacabd0; bundle 331 -> 225 KB gzip) Remove Firebase: delete `services/firebase.ts` and the dependency; add a
-  `NetClient` interface with a `LocalNet` implementation; local player id persisted; HUD badge
-  shows "Solo" instead of a hard-coded "Online". AC: no `firebase` in source or package.json;
-  bundle gzip drops; e2e green.
-- [x] P1.2 (99ff41b) Input: keys by `KeyboardEvent.code`; clear keys on window blur; ignore keys while
-  typing in inputs; on-screen controls get a live game reference (no null on first render);
-  virtual joystick drives `setAnalogInput`; one-finger drag on the canvas rotates the camera.
-  AC: unit test (W + Shift press/release never sticks); e2e joystick moves the player on the
-  first frame with no other UI interaction.
-- [x] P1.3 (2d4c0e8; player 1.75 m, spawn on clear_walk) Metre scale: all gameplay in metres; player 1.75 m; walk 3 m/s, run 6 m/s; build
-  grid 2 m, storey 3 m; camera distances retuned; oversized props (bench, bin) to real size;
-  spawn on a pavement near Oxford Circus. AC: unit test player height 1.75 +/- 0.05; e2e spawn
-  zone is `clear_walk`.
-- [x] P1.4 (f961257; 1,427 -> 296 lines, 11 PlayerController tests) Split `ThreeGame.ts` into `Input`, `PlayerController` (pure), `CameraRig`,
-  `BuildSystem`, `RemotePlayers`, `Pickups`, `SceneSetup`; React reads game state through a
-  small store/event bridge instead of per-frame polling. AC: `ThreeGame.ts` <= 300 lines;
-  `PlayerController` unit tests (acceleration, walk/run top speed within 1%, diagonal
-  normalisation, wall sliding).
-- [x] P1.5 (625492e) Combat behind `FEATURES.combat = false`: no pickups, no attack buttons or combat
-  HUD. AC: e2e asserts absence; combat unit tests still pass.
-- [x] P1.6 (68653e7) Real place names: HUD zone comes from the nearest named intersection or road in
-  the world config; delete hard-coded zone rectangles and shop coordinates.
-  AC: unit test (430, 260) -> "Oxford Circus"; e2e HUD name matches config.
-- [x] P1.7 (cce7862) Local save v1: versioned save (position, money, energy, blocks, appearance) with
-  migration and corrupt-save fallback; autosave every 10 s and on page hide.
-  AC: e2e move + place block + reload -> restored; unit tests for migration and corruption.
-- [x] P1.8 (9fc3641; Oxford Circus 2,968 -> 61 calls, 18 -> 2 lights, 99 -> 10 textures) Performance pass: merge static world meshes by material per 100 m chunk, instance
-  repeated props, shared material cache, small props stop casting shadows, shadow camera
-  follows the player, point lights replaced with emissive lamp heads.
-  AC: draw calls at spawn <= 300; triangles <= 400k; screenshot before/after in `LOG.md`.
-- [x] P1.9 (f2e5e03) Tailwind from CDN -> build-time Tailwind; no external scripts in `dist/index.html`.
-  AC: UI screenshots unchanged by eye; verify green.
+- [ ] B1 Export map data from the prototype: `data/london.json` (roads, junctions with names,
+  districts) and `data/zones.json` (2 m zone grid). AC: Python loader test round-trips counts.
+- [ ] B2 Export the generated street geometry as `data/london_streets.glb` (batched, vertex
+  colours, shared textures) using headless Chromium. AC: file <= 15 MB; loads in bpy.
+- [ ] B3 `tools/build_world.py` (bpy): import the streets, organise collections, EEVEE
+  materials from vertex colours, static physics on walkable surfaces, save `build/dca.blend`.
+  AC: bpy test checks 800 m extent, object budget, every material valid.
+- [ ] B4 Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
+  cases as the prototype ((430, 260) -> "Oxford Circus", spawn on `clear_walk`).
+- [ ] B5 Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
+  goal 3 (join by material per chunk, instancing for props, LOD or culling if needed).
 
-Exit: verify green; draw calls <= 300 at spawn; bundle <= 350 KB gzip; `ThreeGame.ts` <= 300
-lines; coverage threshold raised to the new level. PROVEN 2026-10-01 (spawn 59 calls, bundle
-232 KB gzip, ThreeGame 300 lines, thresholds 71/71/87/91, verify 4 min).
+Exit: the world loads in UPBGE and meets goal 3 with an empty street.
 
-## Phase 2 - Walk-in foundation
+## Phase C - Player
 
-- [ ] P2.1 Rapier (`@dimforge/rapier3d-compat`) physics world; kinematic character
-  controller (capsule 1.75 m, autostep 0.25 m, snap-to-ground 0.3 m, max slope 45 deg)
-  replaces the AABB collision and the stair teleport. AC: tests: stops at a wall, climbs a
-  0.18 m step, drops off a ledge.
-- [ ] P2.2 Greybox walk-in shop `.glb` (prefer Blender via MCP or `tools/blender/*.py`; code
-  fallback allowed): 8 x 10 m, 2 storeys at 3 m, front door 1.2 x 2.3 m, straight stair (rise
-  0.18, run 0.28), counter, `COL_*` collision meshes, `DOOR_*` hinge empty, `INTERACT_*`
-  empties. Loader turns `COL_*` into colliders and hides them. AC: loader unit test; e2e shop
-  visible on Regent Street; asset <= 300 KB.
-- [ ] P2.3 Doors: interact to open/close (hinge animation); collider follows.
-  AC: e2e closed door blocks, open door lets the player through.
-- [ ] P2.4 Indoor detection + cutaway camera: interior volumes; roof and floors above the
-  player hide; walls between camera and player fade; indoor camera distance clamp.
-  AC: per-frame camera-in-geometry check passes during the walk-in tour.
-- [ ] P2.5 Interior light pool: fixed set of 2 lights moved into the current room; light count
-  never changes at runtime. AC: `renderInfo().programs` identical after 3 enter/exit cycles.
-- [ ] P2.6 E2E "walk-in tour": street -> door -> ground floor -> stairs -> upper floor
-  (y >= 2.9) -> back outside. AC: passes 3 runs in a row.
+- [ ] C1 Player character from a bpy script: 1.75 m low-poly figure with an armature
+  (idle, walk, run actions), character physics capsule, step height 0.25 m, max slope 45 deg.
+  AC: bpy test height 1.75 +/- 0.05.
+- [ ] C2 Controller component: WASD + Shift run, camera-relative movement, 3 / 6 m/s; the
+  movement maths lives in `dca/` and is unit-tested. AC: scenario 4b.
+- [ ] C3 Third-person camera: mouse orbit, wheel zoom, pull-in on collision.
+  AC: scenario check camera-in-geometry passes on a street walk.
+- [ ] C4 HUD overlay: money, energy, place name, prompts. AC: scenario 4a reads the HUD text.
+- [ ] C5 Save/load (`dca/save.py`, versioned JSON with migrations, in the user's app-data
+  folder); autosave every 10 s and on quit. AC: pytest + scenario quit/relaunch.
 
-Exit: P2.6 green; budgets hold inside the shop.
+Exit: walk London at human scale at 60 fps with a working camera and save.
 
-## Phase 3 - Economy core (needs D1)
+## Phase D - Walk-in buildings (Blender kit)
 
-- [ ] P3.1 Rules module (wallet, catalog, prices) in the D1 language, pure and unit-tested.
-- [ ] P3.2 In-game clock (default 1 day = 20 real minutes) with a daily tick.
-- [ ] P3.3 Plots along road frontages; price by road type (boulevard > main > secondary >
-  lane) and distance to landmarks; for-sale signs.
-- [ ] P3.4 Courier jobs: job board in shops, pickup -> drop-off, fare = base + per metre of
-  street route, energy cost.
-- [ ] P3.5 Energy and food: energy drains with jobs and running; food shop restores it.
-- [ ] P3.6 Ownership: buy plots/buildings; daily rent and shop income from foot traffic
-  (road type proxy); saved.
-- [ ] P3.7 HUD: wallet, energy, clock, current job, buy dialog.
+- [ ] D1 `docs/kit-spec.md`: 2 m grid, 3 m storey, 0.25 m walls, naming, one material atlas,
+  custom properties (`kind`, `footprint`, `snaps`, `catalogId`), `COL_`/`DOOR_`/`INTERACT_`.
+- [ ] D2 `tools/build_kit.py` (bpy) generates the kit reproducibly into `build/kit.blend`:
+  wall, wall_window, wall_door, floor, stairs, roof_flat, roof_pitched, shopfront, counter,
+  shelf, bed, table, chair, lamp. AC: bpy tests on dimensions (door 1.2 x 2.3 m etc.).
+- [ ] D3 Greybox walk-in shop from the kit on Regent Street (8 x 10 m, 2 storeys, stairs).
+- [ ] D4 Doors: interact to open/close with a hinge animation; collision follows.
+- [ ] D5 Indoor cutaway camera: roofs and floors above the player hide, walls between camera
+  and player fade. AC: goal 5 during scenario 4d.
+- [ ] D6 Interior lighting: a fixed small light set moved into the current room.
+- [ ] D7 Facades: terraces (2-5 storeys) along frontages built from the kit, each with a door.
+- [ ] D8 On-demand interiors spawned near the player with UPBGE's fast AddObject (dupli base)
+  and released beyond 40 m.
 
-Exit: e2e economy loop (job -> earn -> buy -> place -> daily income -> reload persists);
-rules module coverage >= 90%.
+Exit: scenario 4d green; goal 3 holds at Oxford Circus with frontages and inside the shop.
 
-## Phase 4 - Blender kit v1 and the city
+## Phase E - Economy (needs D1)
 
-- [ ] P4.1 `docs/kit-spec.md`: 2 m grid, 3 m storey, 0.25 m walls, naming, one 2048 atlas,
-  `extras` schema (`kind`, `footprint`, `snaps`, `catalogId`), `COL_`/`DOOR_`/`INTERACT_`
-  conventions, export settings.
-- [ ] P4.2 `tools/blender/build_kit.py`: generates the kit reproducibly with bpy (run through
-  Blender CLI or the Blender MCP) -> `public/assets/kit_v1.glb`. Pieces: wall, wall_window,
-  wall_door, floor, stairs, roof_flat, roof_pitched, shopfront, counter, shelf, bed, table,
-  chair, lamp.
-- [ ] P4.3 Kit loader + instancing registry; build system places kit pieces on the 2 m grid
-  with snapping and rotation; collision from `COL_` meshes.
-- [ ] P4.4 Facade generator: terraces (2-5 storeys) along frontages from the kit, each with a
-  door; skips junctions, roundabouts and parks.
-- [ ] P4.5 On-demand interiors: assembled within 25 m or on entry, released beyond 40 m, pooled.
-- [ ] P4.6 Functional shops: food shop and pet shop interiors with counter interactions.
-- [ ] P4.7 Street furniture from the kit (lamp, bench, bollard, bin, phone box, pillar box),
-  instanced; procedural versions deleted.
+- [ ] E1 Rules package: wallet, catalog, prices (pure, >= 90% coverage).
+- [ ] E2 In-game clock (default 1 day = 20 real minutes) with a daily tick.
+- [ ] E3 Plots along frontages priced by road type and distance to landmarks; for-sale signs.
+- [ ] E4 Courier jobs: job board in shops, pickup -> drop-off, fare = base + per metre.
+- [ ] E5 Energy and food; the food shop restores energy.
+- [ ] E6 Ownership: buy plots/buildings; daily rent and shop income; saved.
+- [ ] E7 In-game build mode: place kit pieces on the 2 m grid inside owned buildings.
 
-Exit: budgets hold at Oxford Circus with frontages; e2e enters 3 random frontage buildings.
+Exit: scenarios 4c, 4e, 4f green.
 
-## Phase 5 - Rust co-op server
+## Phase F - Rust co-op server
 
-- [ ] P5.1 `server/` Cargo workspace: `dca-protocol` (serde; `ts-rs` generates
-  `src/net/protocol.ts`), `dca-server` (axum WebSocket), `/health`.
-- [ ] P5.2 Rooms with a 4-letter code, max 2 players, join/leave, presence.
-- [ ] P5.3 Position relay at 15 Hz; client interpolation buffer (100 ms).
-- [ ] P5.4 World edits: intents -> server sequence numbers -> broadcast; conflict test (needs D2).
-- [ ] P5.5 Persistence in SQLite per room; load on start; autosave.
-- [ ] P5.6 Client `WsNet` implementation with reconnect; host/join UI.
-- [ ] P5.7 `docs/play-on-pixel.md`: running the server on the PC, `tailscale serve` for wss.
+- [ ] F1 `server/` Cargo workspace: `dca-protocol` (serde, JSON lines over TCP), `dca-server`
+  (tokio), health check.
+- [ ] F2 Rooms with a 4-letter code, max 2 players, join/leave.
+- [ ] F3 UPBGE client: non-blocking socket component; position relay at 15 Hz with a 100 ms
+  interpolation buffer for the other player.
+- [ ] F4 World edits: intents -> server sequence numbers -> broadcast; conflict test (needs D2).
+- [ ] F5 Persistence in SQLite per room; load on start; autosave.
 
-Exit: `cargo test` green; e2e 4g green.
+Exit: `cargo test` green; scenario 4g green with two players on Brandon's PC.
 
-## Backlog (after v1, not part of the completion goal)
+## Phase G - Ship
 
-Blender character rig with animations; pedestrians on pavements; day/night; landmarks
-(Marble Arch, Trafalgar Square); audio; combat revival; Seven Dials.
+- [ ] G1 Export `DCA.exe` with Save As Game Engine Runtime into `dist/DCA/`; the harness runs
+  the smoke scenario against it. AC: goal 6.
+- [ ] G2 Full goal 1-6 sweep; set `STATUS: READY_FOR_PLAY_CHECK`.
+
+## Backlog (after v1)
+
+Python port of the street generator (retire `web/` entirely); pedestrians; day/night;
+landmarks (Marble Arch, Trafalgar Square); audio; Seven Dials; combat.
+
+## History: plan v1 (web prototype)
+
+Phase 0 (loop tooling) and Phase 1 (stabilise the three.js client) were completed on
+2026-10-01 under plan v1 and are recorded in `LOG.md`. Plan v1 assumed a phone target; that
+was wrong and is withdrawn (D8).

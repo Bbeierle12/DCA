@@ -101,3 +101,15 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
   232 KB gzip, ThreeGame.ts 300 lines, coverage thresholds 71/71/87/91.
 - Next: Phase 2 (Rapier character controller, greybox walk-in shop). P2.2 prefers Blender via
   MCP on Brandon's PC; if it's offline, generate the greybox in code and note it.
+
+## 2026-10-01 - Plan v2: UPBGE build
+- Brandon: "This isn't going on my Pixel. This is a Blender build." He chose Blender as the
+  engine (UPBGE). Plan v1's Pixel target was my assumption, never his; withdrawn (D8).
+- PLAN.md rewritten for UPBGE 0.50 (built on Blender 5.0.1): phases A toolchain, B London in
+  Blender, C player, D walk-in buildings, E economy, F Rust co-op, G ship. Completion goal now
+  measured by a UPBGE scenario harness and fps on Brandon's PC (AMD Radeon integrated).
+- Verified: his PC runs Blender 5.2.2 LTS (Store install) with the Blender MCP extension; no
+  UPBGE. `bpy==5.0.1` is on PyPI for Python 3.11, matching UPBGE 0.50's Blender base, so
+  scene-building code can be tested in the cloud sandbox. GitHub release downloads are blocked
+  by the sandbox egress policy (403), so UPBGE itself only runs on Brandon's PC.
+- The web prototype stays as the source of street data/geometry (D9).
