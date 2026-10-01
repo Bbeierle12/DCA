@@ -110,10 +110,8 @@ def add_game_driver(scene: bpy.types.Scene) -> bpy.types.Object:
 
 
 # D11/B5, measured on Brandon's PC (UPBGE 0.36.1, 1280x720, camera turning): soft shadows off,
-# 512 px sun cascades and one TAA sample cut the median frame from 9.3 to 6.5 ms; a 90 fps cap
-# leaves the iGPU headroom and gives fewer 22+ ms hitches than running uncapped.
+# 512 px sun cascades and one TAA sample cut the median frame from 9.3 to 6.5 ms.
 EEVEE = {"use_soft_shadows": False, "shadow_cascade_size": "512", "taa_samples": 1}
-FRAME_CAP = 90
 
 
 def configure_render(scene: bpy.types.Scene) -> None:
@@ -148,9 +146,13 @@ def configure_engine(scene: bpy.types.Scene) -> None:
         return
     gs = scene.game_settings
     gs.resolution_x, gs.resolution_y = 1280, 720
-    gs.use_frame_rate = True
-    gs.fps = FRAME_CAP  # also the logic and physics tic rate
-    gs.physics_step_sub = 1  # one physics step per tic: dca.movement.per_step relies on it
+    # Variable time step: one logic tick and one physics step per rendered frame, each as long
+    # as the real time that passed. UPBGE's fixed-rate mode runs int(elapsed * ticrate) ticks
+    # and drops the remainder, so below the tic rate the whole game ran in slow motion (C2:
+    # 5.07 m instead of 6 m at 75 fps with a 90 Hz tic rate). Movement scales by that time.
+    gs.use_frame_rate = False
+    gs.fps = 60
+    gs.physics_step_sub = 1
     gs.vsync = "OFF"
     gs.exit_key = "ESC"
 

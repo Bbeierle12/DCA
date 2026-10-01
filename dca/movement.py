@@ -84,7 +84,10 @@ def animation_for(speed: float) -> tuple[str, float]:
     return name, (speed / body.STRIDE[name]) * frames / body.ACTION_FPS
 
 
-def per_step(velocity: tuple[float, float], tic_rate: float, substeps: int = 1) -> tuple[float, float]:
-    """UPBGE's character walkDirection is a displacement per physics step, not a velocity."""
-    steps = tic_rate * substeps
-    return velocity[0] / steps, velocity[1] / steps
+def displacement(velocity: tuple[float, float], dt: float) -> tuple[float, float]:
+    """UPBGE's character walkDirection is a displacement per physics step, not a velocity.
+
+    With the variable time step (tools/build_game.configure_engine) there is one physics step per
+    frame, lasting the frame's real time dt.
+    """
+    return velocity[0] * dt, velocity[1] * dt

@@ -47,7 +47,7 @@ class PlayerController:
 
     def update(self, intent: movement.Intent, camera_yaw: float, dt: float) -> None:
         vx, vy = movement.desired_velocity(intent, camera_yaw)
-        self.char.walkDirection = (*movement.per_step((vx, vy), bge.logic.getLogicTicRate()), 0.0)
+        self.char.walkDirection = (*movement.displacement((vx, vy), dt), 0.0)
         self.speed = math.hypot(vx, vy)
         if self.speed > 0:
             self.yaw = movement.turn_toward(self.yaw, movement.yaw_of(vx, vy), movement.TURN_RATE * dt)

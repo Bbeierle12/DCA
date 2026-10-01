@@ -48,7 +48,6 @@ def test_render_settings_from_the_b5_sweep(tmp_path: Path):
     assert eevee.use_soft_shadows is False
     assert eevee.shadow_cascade_size == "512"
     assert eevee.taa_samples == 1
-    assert build_game.FRAME_CAP == 90
 
 
 def test_player_stands_on_the_spawn_pavement(tmp_path: Path):

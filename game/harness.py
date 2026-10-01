@@ -21,6 +21,12 @@ from game.scenarios.registry import SCENARIOS
 MAX_SECONDS = 180.0
 
 
+def render_clock() -> float:
+    """The engine clock: it advances once per rendered frame, however many logic ticks run."""
+    get = getattr(bge.logic, "getClockTime", None)
+    return get() if get else time.perf_counter()
+
+
 def profile_info() -> dict | None:
     """UPBGE's per-category frame profile (ms, %): physics, logic, rasterizer, ... if available."""
     get = getattr(bge.logic, "getProfileInfo", None)
@@ -133,7 +139,9 @@ class Harness:
     def tick(self):
         if self.done:
             return
-        now = time.perf_counter()
+        now = render_clock()
+        if now == self.last:  # another logic tick in the same rendered frame
+            return
         if self.last is not None:
             dt = now - self.last
             if self.ctx.measuring:

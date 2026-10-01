@@ -38,7 +38,8 @@ def run(ctx):
         main.instance().camera_follow = False  # this scenario drives the camera itself
     probe = scene.objects["Game"]
     for label, x, y in perf.key_spots(world):
-        hit, point, _ = probe.rayCast((x, y, -5.0), (x, y, 3.0), 0, "", 0, 0, 0, units.WORLD_MASK)
+        # x-ray + mask: see through anything not in the world group (the player standing here)
+        hit, point, _ = probe.rayCast((x, y, -5.0), (x, y, 3.0), 0, "", 0, 1, 0, units.WORLD_MASK)
         detail = [kind_of(hit), hit.name, round(point[2], 2)] if hit is not None else None
         # Something solid at standing height (pavement top is 0.26-0.31 m; a low kerbside prop is
         # fine to stand on). Decor has no collision, so the ray never hits it.

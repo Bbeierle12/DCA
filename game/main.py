@@ -12,6 +12,11 @@ from game import input as game_input
 _instance = None
 
 
+def clock() -> float:
+    get = getattr(bge.logic, "getClockTime", None)
+    return get() if get else time.perf_counter()
+
+
 def camera_yaw(camera) -> float:
     """Yaw of the camera's view direction projected on the ground (camera looks down its -z)."""
     view = camera.worldOrientation.col[2] * -1.0
@@ -28,11 +33,13 @@ class Game:
         if "Camera" in scene.objects:
             scene.active_camera = scene.objects["Camera"]
         self.player = PlayerController(scene) if "Player" in scene.objects else None
-        self.last = time.perf_counter()
+        self.camera_follow = True
+        self.last = clock()
 
     def update(self) -> None:
-        now = time.perf_counter()
-        dt, self.last = min(now - self.last, 0.1), now
+        # The engine's clock, so movement uses exactly the time this frame's physics step covers.
+        now = clock()
+        dt, self.last = max(0.0, min(now - self.last, 0.1)), now
         if self.player is None:
             return
         yaw = game_input.camera_yaw

@@ -57,6 +57,8 @@ def test_animation_choice_and_rate():
     assert name == "run" and rate == pytest.approx(2.0)
 
 
-def test_walk_direction_is_per_physics_step():
-    assert m.per_step((3.0, 0.0), tic_rate=90) == pytest.approx((3.0 / 90, 0.0))
-    assert m.per_step((0.0, 6.0), tic_rate=60, substeps=2) == pytest.approx((0.0, 0.05))
+def test_walk_direction_is_this_steps_displacement():
+    assert m.displacement((3.0, 0.0), dt=1 / 75) == pytest.approx((0.04, 0.0))
+    # 2 s of frames at any rate adds up to 6 m
+    steps = [m.displacement((0.0, 3.0), dt)[1] for dt in [1 / 75] * 75 + [1 / 60] * 60]
+    assert sum(steps) == pytest.approx(6.0)
