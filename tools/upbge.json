@@ -1,0 +1,14 @@
+{
+  "version": "0.50",
+  "blender": "5.0.1",
+  "python": "3.11.13",
+  "buildHash": "9fcf0da621c3",
+  "source": "https://github.com/UPBGE/upbge/releases/download/v0.50/upbge-0.50-windows-x64.7z",
+  "sha256": "C59198CBE361AFA9D78F515751D2A34F3DF236F137393111FD8CC4B43E1DCE71",
+  "windows": {
+    "dir": ".upbge/upbge-0.50-windows-x64",
+    "blender": "blender.exe",
+    "player": "blenderplayer.exe"
+  },
+  "install": "Download the .7z above into .upbge/ and extract it there (tar -xf works on Windows 11). Paths are relative to the repo root."
+}

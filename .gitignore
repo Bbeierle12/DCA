@@ -31,3 +31,14 @@ playwright-report
 .shot.mjs
 .shot2.mjs
 .shot3.mjs
+
+# Python / Blender build
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+.upbge/
+*.blend1
+.vite/
