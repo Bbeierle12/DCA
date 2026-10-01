@@ -117,7 +117,7 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
   districts) and `data/zones.json` (2 m zone grid). AC: Python loader test round-trips counts.
 - [x] B2 (94bdf18; 4.7 MB, 140 meshes, 23 materials, 104k verts; imports in bpy in 0.8 s) Export the generated street geometry as `data/london_streets.glb` (batched, vertex
   colours, shared textures) using headless Chromium. AC: file <= 15 MB; loads in bpy.
-- [ ] B3 `tools/build_world.py` (bpy): import the streets, organise collections, EEVEE
+- [~] B3 (bb2240d sandbox-green: 140 objects, 129.7k faces, 23 materials valid; UPBGE build pending on Brandon's PC) `tools/build_world.py` (bpy): import the streets, organise collections, EEVEE
   materials from vertex colours, static physics on walkable surfaces, save `build/dca.blend`.
   AC: bpy test checks 800 m extent, object budget, every material valid.
 - [ ] B4 Port place names, pavement spawn and zone lookup to `dca/world/` with the same test

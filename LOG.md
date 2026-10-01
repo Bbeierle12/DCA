@@ -175,3 +175,18 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
 - Content is deterministic but bytes are not: images finish encoding in varying order, so
   bufferView order changes between runs. Don't use the file hash as a change detector.
 - verify OK (26 tests). web verify green.
+
+## 2026-10-01 - B3 world build (sandbox)
+
+- `tools/build_world.py` imports the street glb into `World/{Ground,Surfaces,Props,Decor}`:
+  1 ground, 70 surfaces (top <= 0.4 m), 43 props, 26 decor; 129.7k faces, 23 materials.
+  Kind and physics go into custom properties (`dca_kind`, `dca_physics`) and, inside UPBGE,
+  `object.game.physics_type` (static triangle mesh, or no collision for decor).
+- `build_game.build()` now builds the world instead of the 100 m plane; reset also clears
+  images and nested collections; sun energy 3; camera behind the spawn pavement, clip 1 km.
+- Found for C1: the prototype's kerbs are 0.3 m high (pavement top 0.26-0.31 m) but C1 plans a
+  0.25 m step height, so the player could not step onto the pavement. Either raise the step
+  height to ~0.35 m or lower kerbs to a UK-typical 0.125 m when the geometry moves to Python.
+- B3 stays `[~]` until the UPBGE headless build and smoke scenario pass on Brandon's PC
+  (glTF import inside UPBGE, `game.physics_type`, `use_collision_bounds`).
+- verify OK (38 tests).
