@@ -20,6 +20,19 @@ from game.scenarios.registry import SCENARIOS
 MAX_SECONDS = 180.0
 
 
+def profile_info() -> dict | None:
+    """UPBGE's per-category frame profile (ms, %): physics, logic, rasterizer, ... if available."""
+    get = getattr(bge.logic, "getProfileInfo", None)
+    if get is None:
+        return None
+    try:
+        info = get()
+    except Exception:
+        return None
+    return {k: [round(float(x), 2) for x in v] if isinstance(v, (list, tuple)) else v
+            for k, v in info.items()}
+
+
 class ScenarioContext:
     def __init__(self, name: str):
         self.name = name
@@ -68,6 +81,9 @@ class ScenarioContext:
         self.window = None
         if label:
             self.metric(label, frame_stats(window).as_dict())
+            profile = profile_info()
+            if profile:
+                self.metric(f"{label}_profile", profile)
 
     def check(self, label: str, ok: bool, detail=None):
         self.checks.append({"label": label, "ok": bool(ok), "detail": detail})
