@@ -101,7 +101,7 @@ HTMLCanvasElement.prototype.getContext = function getContext(type: string, ...ar
       deleteProgram: () => {},
       deleteShader: () => {},
       deleteBuffer: () => {}
-    } as WebGLRenderingContext;
+    } as unknown as WebGLRenderingContext;
   }
 
   return canvasGetContext.call(this, type, ...args);

@@ -1,20 +1,20 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# DCA
 
-# Run and deploy your AI Studio app
+A one-or-two-player web game set on a living West End street map: earn money, buy plots and
+buildings, build and furnish them with a Blender-made kit, and walk into any building.
 
-This contains everything you need to run your app locally.
+Built with React, three.js, Vite and TypeScript, with a Rust co-op server planned.
 
-View your app in AI Studio: https://ai.studio/apps/drive/17xNX2RVhXFzVjLuMxHXzf_myQqGXp4Go
+## Run
 
-## Run Locally
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm run verify     # typecheck, unit tests, build, end-to-end tests
+```
 
-**Prerequisites:**  Node.js
+## How work happens
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Development runs as a loop: `PLAN.md` holds the completion goal and the task list,
+`LOOP.md` is the per-iteration protocol, `LOG.md` records each iteration.
+`scripts/loop.sh` (or `scripts/loop.ps1` on Windows) runs Claude Code headless through it.
