@@ -19,6 +19,7 @@ import bpy
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = ("dca", "game")
+DATA_FILES = ("london.json", "zones.json")  # runtime map data; probes.json is for tests only
 
 
 def is_upbge() -> bool:
@@ -94,12 +95,16 @@ def configure_engine(scene: bpy.types.Scene) -> None:
 
 
 def copy_packages(out_dir: Path) -> None:
-    """The player finds modules next to the .blend, so ship the Python packages with it."""
+    """The player finds modules next to the .blend, so ship the packages and map data with it."""
     for name in PACKAGES:
         dest = out_dir / name
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(ROOT / name, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    data_out = out_dir / "data"
+    data_out.mkdir(exist_ok=True)
+    for name in DATA_FILES:
+        shutil.copy2(ROOT / "data" / name, data_out / name)
 
 
 def build(out: Path) -> Path:

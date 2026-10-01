@@ -24,7 +24,10 @@ Windows PC. Plan and loop: `PLAN.md`, `LOOP.md`, `LOG.md`. Brandon directs archi
 - `python scripts/verify.py --upbge` - also builds in UPBGE headless and runs every scenario
   with `blenderplayer` (Brandon's PC only; a game window opens for each scenario).
 - `python scripts/upbge_run.py build | scenario NAME | all`.
-- Web prototype: `cd web && npm run verify` (only if you touch `web/`).
+- Web prototype: `cd web && npm run verify` (only if you touch `web/`). In the cloud sandbox set
+  `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` for the e2e step.
+- Map data: `cd web && npm run export:map` rewrites `data/london.json`, `data/zones.json` and
+  `data/probes.json` (golden answers the Python port in `dca/world/` is tested against).
 
 ## Conventions
 

@@ -12,6 +12,8 @@ def test_build_writes_blend_and_ships_packages(tmp_path: Path):
     assert out.exists()
     assert (tmp_path / "dca" / "units.py").exists()
     assert (tmp_path / "game" / "boot.py").exists()
+    assert (tmp_path / "data" / "london.json").exists()
+    assert (tmp_path / "data" / "zones.json").exists()
     assert not list(tmp_path.rglob("__pycache__"))
 
     bpy.ops.wm.open_mainfile(filepath=str(out))

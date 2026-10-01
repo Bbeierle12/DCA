@@ -14,7 +14,8 @@
     "e2e:ui": "playwright test --ui",
     "typecheck": "tsc --noEmit",
     "size": "node scripts/size.mjs 350",
-    "verify": "npm run typecheck && npm test && npm run build && npm run size && npm run e2e"
+    "verify": "npm run typecheck && npm test && npm run build && npm run size && npm run e2e",
+    "export:map": "vite-node scripts/export_map.ts"
   },
   "dependencies": {
     "react": "^19.2.0",
