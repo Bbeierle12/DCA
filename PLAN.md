@@ -112,6 +112,7 @@ The v1 log entries stay in `LOG.md` as history.
 - [x] A5 Loop files for the new stack (LOOP.md, CLAUDE.md, `scripts/loop.ps1`).
 
 Exit: `python scripts/verify.py` green in the sandbox and `--upbge` green on Brandon's PC.
+PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps at 1080p).
 
 ## Phase B - London in Blender
 

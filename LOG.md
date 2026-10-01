@@ -131,3 +131,9 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
 - A5: CLAUDE.md, README and loop runners rewritten for the UPBGE stack.
 - Moving code to the PC: commits travel as git bundles (`dca-<hash>.bundle` in
   `C:\Users\Bbeie\repos`), pulled into `C:\Users\Bbeie\repos\DCA` and pushed from there.
+
+## 2026-10-01 - Phase A exit
+- PC: `verify.py --upbge` OK at 5b5fc2b. Smoke this run: avg 80.2 / 1%-low 61.6 fps at 1080p,
+  warm-up 2.7 s. Earlier run of the same build: 65 / 16. Expect run-to-run variance on this
+  laptop chip (power/thermal state); judge performance over several runs, not one.
+- Next: Phase B (London in Blender). B1-B4 run in the sandbox; B5 needs the PC and D10.
