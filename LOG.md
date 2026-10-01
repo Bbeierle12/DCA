@@ -190,3 +190,12 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
 - B3 stays `[~]` until the UPBGE headless build and smoke scenario pass on Brandon's PC
   (glTF import inside UPBGE, `game.physics_type`, `use_collision_bounds`).
 - verify OK (38 tests).
+
+## 2026-10-01 - B4 places, spawn, zones in Python
+
+- `dca/world/places.py` (`place_name_at`, `street_name`, `PlaceNamer`) and
+  `dca/world/spawn.py` (`find_nearest_zone_point`) port the TypeScript in the same arithmetic
+  order. `dca.world.World` wraps them in Blender coordinates: `place_at(430, -260)` is
+  "Oxford Circus"; `spawn_point()` is on a clear-walk cell.
+- Parity: all 2214 probe place names and all 10 spawn searches (2 of which find nothing within
+  80 m, e.g. deep in Hyde Park) equal the TS answers. verify OK (50 tests).

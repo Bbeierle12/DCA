@@ -120,7 +120,7 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
 - [~] B3 (bb2240d sandbox-green: 140 objects, 129.7k faces, 23 materials valid; UPBGE build pending on Brandon's PC) `tools/build_world.py` (bpy): import the streets, organise collections, EEVEE
   materials from vertex colours, static physics on walkable surfaces, save `build/dca.blend`.
   AC: bpy test checks 800 m extent, object budget, every material valid.
-- [ ] B4 Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
+- [x] B4 (17937a8; 2214/2214 probe names and 10/10 spawn searches match the TS) Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
   cases as the prototype ((430, 260) -> "Oxford Circus", spawn on `clear_walk`).
 - [ ] B5 Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
   goal 3 (join by material per chunk, instancing for props, LOD or culling if needed).
