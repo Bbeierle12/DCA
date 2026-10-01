@@ -1,0 +1,33 @@
+[project]
+name = "dca"
+version = "0.1.0"
+description = "DCA: a walk-in London city game built in Blender and run with UPBGE"
+requires-python = ">=3.11,<3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    # Same Blender as UPBGE 0.50 (built on 5.0.1): lets scene-building code run headless anywhere.
+    "bpy==5.0.1",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dca*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["web", ".upbge", "build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
