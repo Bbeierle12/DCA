@@ -23,3 +23,30 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
   Bundle 331 KB gzip. The budget (<= 300 calls) is about 10x away at Oxford Circus.
 - Note for next iterations: SwiftShader runs ~2 fps, so e2e asserts on frame counts and
   positions, never on wall-clock speed. Use `waitForFrames`, not timeouts.
+
+## 2026-10-01 - P1.1 Remove Firebase
+- `NetClient` interface + `LocalNet` (persistent local id, block edits echoed back with ids).
+  Player state publishes at 10 Hz by game clock instead of `Math.random() > 0.9` per frame.
+  HUD badge reads Solo. Bundle 331 -> 225 KB gzip. Coverage threshold raised to 54%.
+
+## 2026-10-01 - P1.2 Input
+- `services/game/Input.ts`: keys by `KeyboardEvent.code`, cleared on blur/hidden, ignored in
+  text fields, actions fire once per press. Shift = sprint. Joystick component (pointer events)
+  replaces the D-pad; Controls take `getGame()` so they work before React re-renders.
+  One-finger canvas drag orbits the camera. Mouse/wheel listeners moved from document to the
+  canvas, so clicking UI no longer places blocks behind it.
+- jsdom has no PointerEvent; tests/setup.ts polyfills it as a MouseEvent subclass.
+- E2E uses CDP `Input.dispatchTouchEvent` (context `hasTouch: true`) for real touch input.
+
+## 2026-10-01 - P1.3 Metre scale
+- Constants now WORLD_SIZE 800, BUILD_TILE 2, STOREY_HEIGHT 3, PLAYER_HEIGHT 1.75,
+  SPAWN_TARGET (450, 272). WorldConfig lost its unused tileSize/worldScale/mapWidth fields.
+- Stick figure parts live in a `body` group scaled to 1.75 m, feet at y = 0 (unit-tested).
+  Pets scaled 0.13; name tag at 2.15 m.
+- playerData (x, y) is now the centre of a 0.6 m footprint in metres (y = world z).
+- Building allowed only on OPEN_LANDSCAPE / PERIMETER zone cells; highlight turns red elsewhere.
+  The old "Home Lot" rule is gone from building; the zone label itself is still the old
+  rectangle code until P1.6.
+- Combat ranges/knockback are still in their old values; combat is parked (D4). Revisit if
+  combat returns.
+- Screenshot check: player is human-sized next to Regent Street lanes and the bus lane.

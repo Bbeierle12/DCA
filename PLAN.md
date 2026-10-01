@@ -89,16 +89,16 @@ Exit: `npm run verify` green and fast enough for a loop (< 5 min). PROVEN 2026-1
 
 ## Phase 1 - Stabilise the client
 
-- [ ] P1.1 Remove Firebase: delete `services/firebase.ts` and the dependency; add a
+- [x] P1.1 (bacabd0; bundle 331 -> 225 KB gzip) Remove Firebase: delete `services/firebase.ts` and the dependency; add a
   `NetClient` interface with a `LocalNet` implementation; local player id persisted; HUD badge
   shows "Solo" instead of a hard-coded "Online". AC: no `firebase` in source or package.json;
   bundle gzip drops; e2e green.
-- [ ] P1.2 Input: keys by `KeyboardEvent.code`; clear keys on window blur; ignore keys while
+- [x] P1.2 (99ff41b) Input: keys by `KeyboardEvent.code`; clear keys on window blur; ignore keys while
   typing in inputs; on-screen controls get a live game reference (no null on first render);
   virtual joystick drives `setAnalogInput`; one-finger drag on the canvas rotates the camera.
   AC: unit test (W + Shift press/release never sticks); e2e joystick moves the player on the
   first frame with no other UI interaction.
-- [ ] P1.3 Metre scale: all gameplay in metres; player 1.75 m; walk 3 m/s, run 6 m/s; build
+- [x] P1.3 (2d4c0e8; player 1.75 m, spawn on clear_walk) Metre scale: all gameplay in metres; player 1.75 m; walk 3 m/s, run 6 m/s; build
   grid 2 m, storey 3 m; camera distances retuned; oversized props (bench, bin) to real size;
   spawn on a pavement near Oxford Circus. AC: unit test player height 1.75 +/- 0.05; e2e spawn
   zone is `clear_walk`.
