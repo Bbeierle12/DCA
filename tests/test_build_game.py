@@ -1,0 +1,22 @@
+"""The game build script works in plain bpy 5.0.1 (UPBGE's base) and produces a loadable file."""
+
+from pathlib import Path
+
+import bpy
+
+from tools import build_game
+
+
+def test_build_writes_blend_and_ships_packages(tmp_path: Path):
+    out = build_game.build(tmp_path / "dca.blend")
+    assert out.exists()
+    assert (tmp_path / "dca" / "units.py").exists()
+    assert (tmp_path / "game" / "boot.py").exists()
+    assert not list(tmp_path.rglob("__pycache__"))
+
+    bpy.ops.wm.open_mainfile(filepath=str(out))
+    scene = bpy.context.scene
+    assert scene.unit_settings.system == "METRIC"
+    assert {"Ground", "Sun", "Camera", "Game"} <= set(scene.objects.keys())
+    assert scene.camera.name == "Camera"
+    assert scene.objects["Ground"].dimensions.x == 100.0
