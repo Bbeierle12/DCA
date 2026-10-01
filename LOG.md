@@ -73,3 +73,31 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
   PLAYING. Menu: Continue / New Game. Debug API gained `blocks()` and `save()`.
 - In co-op (Phase 5) blocks must come from the server, so restore only applies blocks when
   `net.mode === 'solo'`.
+
+## 2026-10-01 - P1.8 Performance pass
+- `services/world/StaticBatcher.ts` merges static meshes per 200 m chunk x material key
+  (lit/unlit, transparency, side, emissive, shadow flags, texture image). Colours -> vertex
+  colours; texture matrix baked into UVs. Ground meshes (camera occluders) are kept as-is.
+  `WorldBuilder.build(scene, { batch: true })`; tests that count props build unbatched.
+- TextureFactory caches one canvas per look and returns clones (shared image, own repeat).
+  Road noise no longer varies per segment length; furnishing strip noise is now seeded.
+- Point lights removed (`maxPointLights: 0`). Sun shadow box 80 m, follows the player,
+  snapped to 1 m.
+- Budget e2e (`e2e/budget.spec.ts`) turns a full circle at spawn, Oxford Circus, Trafalgar
+  Square and Piccadilly Circus and writes `test-results/metrics.json`:
+  spawn 59 calls / 38.5k tris; Oxford Circus 61 / 42.5k; Trafalgar 65 / 41.4k;
+  Piccadilly 55 / 42.2k; 2 lights everywhere. (Baseline Oxford Circus: 2,968 / 75.9k / 18.)
+- Pre-existing visual oddity seen in screenshots before and after: a dark stepped shape near
+  junction edges (likely overlapping coplanar junction fill or shadow acne). Not caused by
+  batching. Worth a look when junctions get rebuilt from the kit.
+
+## 2026-10-01 - P1.9 Build-time Tailwind
+- Tailwind v4 via `@tailwindcss/vite`; page CSS in `index.css`. `scripts/size.mjs` also fails
+  if dist/index.html loads a script from another origin. Menu/creator screenshots identical;
+  v4's red-600 is slightly more saturated (UNSTUCK button) - accepted.
+
+## 2026-10-01 - Phase 1 exit
+- Proven: verify green (24 unit files / 170 tests, 15 e2e), spawn 59 draw calls, bundle
+  232 KB gzip, ThreeGame.ts 300 lines, coverage thresholds 71/71/87/91.
+- Next: Phase 2 (Rapier character controller, greybox walk-in shop). P2.2 prefers Blender via
+  MCP on Brandon's PC; if it's offline, generate the greybox in code and note it.

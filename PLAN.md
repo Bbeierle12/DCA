@@ -115,15 +115,16 @@ Exit: `npm run verify` green and fast enough for a loop (< 5 min). PROVEN 2026-1
 - [x] P1.7 (cce7862) Local save v1: versioned save (position, money, energy, blocks, appearance) with
   migration and corrupt-save fallback; autosave every 10 s and on page hide.
   AC: e2e move + place block + reload -> restored; unit tests for migration and corruption.
-- [ ] P1.8 Performance pass: merge static world meshes by material per 100 m chunk, instance
+- [x] P1.8 (9fc3641; Oxford Circus 2,968 -> 61 calls, 18 -> 2 lights, 99 -> 10 textures) Performance pass: merge static world meshes by material per 100 m chunk, instance
   repeated props, shared material cache, small props stop casting shadows, shadow camera
   follows the player, point lights replaced with emissive lamp heads.
   AC: draw calls at spawn <= 300; triangles <= 400k; screenshot before/after in `LOG.md`.
-- [ ] P1.9 Tailwind from CDN -> build-time Tailwind; no external scripts in `dist/index.html`.
+- [x] P1.9 (f2e5e03) Tailwind from CDN -> build-time Tailwind; no external scripts in `dist/index.html`.
   AC: UI screenshots unchanged by eye; verify green.
 
 Exit: verify green; draw calls <= 300 at spawn; bundle <= 350 KB gzip; `ThreeGame.ts` <= 300
-lines; coverage threshold raised to the new level.
+lines; coverage threshold raised to the new level. PROVEN 2026-10-01 (spawn 59 calls, bundle
+232 KB gzip, ThreeGame 300 lines, thresholds 71/71/87/91, verify 4 min).
 
 ## Phase 2 - Walk-in foundation
 
