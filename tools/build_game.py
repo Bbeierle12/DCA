@@ -127,6 +127,22 @@ def configure_render(scene: bpy.types.Scene) -> None:
             setattr(scene.eevee, key, value)
 
 
+def look_through_camera() -> int:
+    """Puts every 3D view in camera view; returns how many were switched.
+
+    UPBGE 0.36's player renders from the saved 3D view (as "__default__cam__") unless that view
+    looks through the scene camera; files saved headless keep the factory free-orbit view.
+    """
+    count = 0
+    for screen in bpy.data.screens:
+        for area in screen.areas:
+            for space in area.spaces:
+                if space.type == "VIEW_3D" and space.region_3d is not None:
+                    space.region_3d.view_perspective = "CAMERA"
+                    count += 1
+    return count
+
+
 def configure_engine(scene: bpy.types.Scene) -> None:
     if not hasattr(scene, "game_settings"):
         return
@@ -160,6 +176,7 @@ def build(out: Path) -> Path:
     add_player(scene)
     add_sun_and_camera(scene)
     add_game_driver(scene)
+    look_through_camera()
     configure_render(scene)
     configure_engine(scene)
     bpy.ops.wm.save_as_mainfile(filepath=str(out), check_existing=False)

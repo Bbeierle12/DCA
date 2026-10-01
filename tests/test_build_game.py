@@ -61,3 +61,11 @@ def test_player_stands_on_the_spawn_pavement(tmp_path: Path):
     assert (round(player.location.x, 3), round(player.location.y, 3)) == (x, y)
     feet = player.location.z - 1.75 / 2
     assert 0.1 <= feet <= 0.15  # pavement top: 0.125 m kerb + 1 cm
+
+
+def test_saved_views_look_through_the_camera(tmp_path: Path):
+    out = build_game.build(tmp_path / "dca.blend")
+    bpy.ops.wm.open_mainfile(filepath=str(out))
+    views = [sp.region_3d for sc in bpy.data.screens for a in sc.areas for sp in a.spaces
+             if sp.type == "VIEW_3D" and sp.region_3d is not None]
+    assert views and all(v.view_perspective == "CAMERA" for v in views)
