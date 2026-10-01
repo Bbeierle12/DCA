@@ -84,7 +84,7 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>(() => {
     const savedSettings = loadSettings();
     return {
-      money: 100, energy: 100, zone: 'City Center', level: 0,
+      money: 100, energy: 100, zone: '', level: 0,
       isBuilding: false, buildItem: 'wood',
       health: COMBAT_CONFIG.MAX_HEALTH,
       maxHealth: COMBAT_CONFIG.MAX_HEALTH,

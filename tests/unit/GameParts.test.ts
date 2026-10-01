@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { Pickups } from '../../services/game/Pickups';
 import { CombatController } from '../../services/game/CombatController';
 import { createAnimatorState } from '../../services/StickFigureAnimator';
-import { placeNameAt } from '../../services/world/Places';
 import { createCharacter, createPetMesh, disposeObject } from '../../services/game/CharacterFactory';
 import { WEAPON_SPAWNS } from '../../constants';
 
@@ -68,10 +67,4 @@ describe('Characters and places', () => {
     expect(() => disposeObject(fig)).not.toThrow();
   });
 
-  it('names legacy places', () => {
-    expect(placeNameAt(10, 10)).toBe('City Center');
-    expect(placeNameAt(200, 10)).toBe('Food Court');
-    expect(placeNameAt(10, 200)).toBe('Home Lot');
-    expect(placeNameAt(140, 110)).toBe('Streets');
-  });
 });

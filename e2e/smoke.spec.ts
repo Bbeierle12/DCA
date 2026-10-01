@@ -32,6 +32,19 @@ test('spawns on a pavement at human scale', async ({ page }) => {
   errs.assertClean();
 });
 
+test('HUD shows real place names from the map', async ({ page }) => {
+  const errs = watchErrors(page);
+  await startGame(page);
+  const zone = await page.evaluate(() => window.__dca!.zone());
+  expect(zone).toBe('Oxford Circus');
+  await expect(page.getByText('Oxford Circus', { exact: true })).toBeVisible();
+  await page.evaluate(() => window.__dca!.teleport(600, 262));
+  await expect(page.getByText('Oxford Street', { exact: true })).toBeVisible();
+  await page.evaluate(() => window.__dca!.teleport(530, 490));
+  await expect(page.getByText('Trafalgar Square', { exact: true })).toBeVisible();
+  errs.assertClean();
+});
+
 test('keyboard moves the player', async ({ page }) => {
   const errs = watchErrors(page);
   await startGame(page);

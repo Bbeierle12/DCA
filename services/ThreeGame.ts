@@ -7,7 +7,7 @@ import { WorldBuilder } from './world/WorldBuilder';
 import { ZoneMapV2 } from './world/ZoneMapV2';
 import { ZoneType } from './world/WorldConfigV2';
 import { findNearestZonePoint } from './world/Spawn';
-import { placeNameAt } from './world/Places';
+import { PlaceNamer } from './world/Places';
 import { FEATURES } from './features';
 import { Input } from './game/Input';
 import { createPlayerState, facingToYaw, PlayerState, stepPlayer } from './game/PlayerController';
@@ -46,6 +46,7 @@ export class ThreeGame {
     private combat = new CombatController();
     private pointer: PointerControls;
     private cursor: CursorTools;
+    private places: PlaceNamer;
     private lastNetSend = 0;
     private lastTime = 0;
     private rafId = 0;
@@ -55,7 +56,9 @@ export class ThreeGame {
         ({ scene: this.scene, renderer: this.renderer, sun: this.sun } = createScene(opts.container));
         this.rig = new CameraRig(window.innerWidth / window.innerHeight);
 
-        const world = new WorldBuilder().build(this.scene);
+        const builder = new WorldBuilder();
+        const world = builder.build(this.scene);
+        this.places = new PlaceNamer(builder.getConfig());
         this.occluders.push(...world.collidableMeshes);
         this.zoneMap = world.zoneMap;
         this.spawnPoint = findNearestZonePoint(this.zoneMap, SPAWN_TARGET.x, SPAWN_TARGET.z, ZoneType.CLEAR_WALK)
@@ -176,7 +179,7 @@ export class ThreeGame {
         }
         const wasDead = this.opts.store.get().isDead;
         this.opts.store.set({
-            zone: placeNameAt(p.x, p.y), level: p.level,
+            zone: this.places.at(p.x, p.y), level: p.level,
             health: c.health, maxHealth: c.maxHealth, weapon: c.weapon, isDead: c.isDead,
         });
         if (!wasDead && c.isDead) this.opts.events.onDeath?.();
@@ -192,14 +195,8 @@ export class ThreeGame {
         const ui = this.opts.getUi();
         if (ui.isBuilding) return this.cursor.buildAtCursor();
         const p = this.player;
-        if (this.build.stairsAt(p.x, p.y, p.level)) {
-            p.level = p.level === 0 ? 1 : 0;
-            return;
-        }
-        const dist = (x: number, y: number) => Math.hypot(p.x - x, p.y - y);
-        if (dist(110, 28) < 16) this.opts.events.onInteract('pet', 0, '');
-        else if (dist(230, 28) < 16 && ui.money >= 5) this.opts.events.onInteract('food', 5, 'Yummy Pizza!');
-        else if (dist(190, 28) < 16 && ui.money >= 5) this.opts.events.onInteract('food', 5, 'Tasty Burger!');
+        // Shops return as real buildings in Phase 4 (P4.6); stairs are the only interaction for now.
+        if (this.build.stairsAt(p.x, p.y, p.level)) p.level = p.level === 0 ? 1 : 0;
     }
 
     private onAction = (code: string, e: KeyboardEvent) => {

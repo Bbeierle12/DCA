@@ -77,6 +77,8 @@ export interface IntersectionArmConfig {
 
 export interface IntersectionConfigV2 {
     id: string;
+    /** Landmark name shown in the HUD when the player is here (unnamed junctions fall back to roads). */
+    name?: string;
     center: PathPoint;
     type: IntersectionType;
     radius: number;                // Bounding radius of intersection zone
@@ -489,6 +491,7 @@ export function createLondonWorldConfig(): WorldConfig {
         // ============================================================
         {
             id: 'hyde-park-corner',
+            name: 'Hyde Park Corner',
             center: { x: 240, z: 400 },
             type: 'roundabout',
             radius: 35,
@@ -510,6 +513,7 @@ export function createLondonWorldConfig(): WorldConfig {
         // ============================================================
         {
             id: 'oxford-circus',
+            name: 'Oxford Circus',
             center: { x: 430, z: 260 },
             type: 'standard',
             radius: 18,
@@ -530,6 +534,7 @@ export function createLondonWorldConfig(): WorldConfig {
         // ============================================================
         {
             id: 'piccadilly-circus',
+            name: 'Piccadilly Circus',
             center: { x: 430, z: 390 },
             type: 'roundabout',
             radius: 22,
@@ -552,6 +557,7 @@ export function createLondonWorldConfig(): WorldConfig {
         // ============================================================
         {
             id: 'trafalgar-square',
+            name: 'Trafalgar Square',
             center: { x: 530, z: 490 },
             type: 'roundabout',
             radius: 25,
@@ -572,6 +578,7 @@ export function createLondonWorldConfig(): WorldConfig {
         // ============================================================
         {
             id: 'marble-arch',
+            name: 'Marble Arch',
             center: { x: 240, z: 260 },
             type: 'T',
             radius: 16,
