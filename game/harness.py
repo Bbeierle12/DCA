@@ -43,6 +43,8 @@ class ScenarioContext:
         self.frame_times: list[float] = []  # only while measuring
         self.measuring = False
         self.window: list[float] | None = None  # frame times of the current labelled window
+        self.results_dir = "results"
+        self.shots: list[str] = []
 
     @property
     def scene(self):
@@ -87,6 +89,14 @@ class ScenarioContext:
             if profile:
                 self.metric(f"{label}_profile", profile)
 
+    def screenshot(self, name: str):
+        """Saves the next rendered frame as <results>/<scenario>_<name>.png (two frames later)."""
+        path = os.path.join(self.results_dir, f"{self.name}_{name}.png")
+        bge.render.makeScreenshot(path)
+        self.shots.append(path)
+        yield
+        yield
+
     def check(self, label: str, ok: bool, detail=None):
         self.checks.append({"label": label, "ok": bool(ok), "detail": detail})
 
@@ -97,6 +107,8 @@ class ScenarioContext:
 class Harness:
     def __init__(self, name: str, results_dir: str, options: dict | None = None):
         self.ctx = ScenarioContext(name)
+        self.ctx.results_dir = results_dir
+        os.makedirs(results_dir, exist_ok=True)
         self.options = options or {}
         # --gc off|freeze: experiment with Python's garbage collector as a source of hitches.
         if self.options.get("gc") == "off":
@@ -157,6 +169,7 @@ class Harness:
             "metrics": ctx.metrics,
             "frames": frame_stats(ctx.frame_times).as_dict(),
             "warmup_seconds": round(self.warmup, 2),
+            "screenshots": ctx.shots,
             "seconds": round(time.perf_counter() - self.started, 2),
         }
         os.makedirs(self.results_dir, exist_ok=True)
