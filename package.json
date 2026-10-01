@@ -12,7 +12,9 @@
     "test:ui": "vitest --ui",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "size": "node scripts/size.mjs 350",
+    "verify": "npm run typecheck && npm test && npm run build && npm run size && npm run e2e"
   },
   "dependencies": {
     "firebase": "^12.6.0",
