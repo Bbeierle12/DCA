@@ -251,31 +251,37 @@ export function getKerbsideConfig(road: RoadSegmentConfig, side: 'left' | 'right
 
 // ===== ROAD PRESETS =====
 
+/**
+ * Kerb upstand, metres. UK kerbs are typically 100-125 mm high; the prototype used 0.3 m, which
+ * a walking character (0.25 m step height in the Blender game) could not step onto.
+ */
+export const KERB_HEIGHT = 0.125;
+
 function boulevard(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
     return buildRoadConfig(
         id, name, path, 'boulevard',
-        3.5, 2, 0.4, 0.3, 3, 3, options
+        3.5, 2, 0.4, KERB_HEIGHT, 3, 3, options
     );
 }
 
 function mainRoad(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
     return buildRoadConfig(
         id, name, path, 'main',
-        5, 1, 0.4, 0.3, 2.5, 2.5, options
+        5, 1, 0.4, KERB_HEIGHT, 2.5, 2.5, options
     );
 }
 
 function secondaryRoad(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
     return buildRoadConfig(
         id, name, path, 'secondary',
-        4.5, 1, 0.4, 0.3, 2, 2, options
+        4.5, 1, 0.4, KERB_HEIGHT, 2, 2, options
     );
 }
 
 function lane(id: string, name: string, path: PathPoint[], options: RoadPresetOptions = {}): RoadSegmentConfig {
     return buildRoadConfig(
         id, name, path, 'lane',
-        3, 1, 0.3, 0.25, 1.5, 1.5, options
+        3, 1, 0.3, KERB_HEIGHT, 1.5, 1.5, options
     );
 }
 

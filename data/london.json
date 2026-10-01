@@ -28,7 +28,7 @@
    "laneWidth": 3.5,
    "carriagewayWidth": 14,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 3,
    "clearWalkWidth": 3,
    "laneLayout": [
@@ -88,7 +88,7 @@
    "laneWidth": 3.5,
    "carriagewayWidth": 14,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 3,
    "clearWalkWidth": 3,
    "laneLayout": [
@@ -144,7 +144,7 @@
    "laneWidth": 3.5,
    "carriagewayWidth": 14,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 3,
    "clearWalkWidth": 3,
    "oneWay": true,
@@ -201,7 +201,7 @@
    "laneWidth": 5,
    "carriagewayWidth": 10,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2.5,
    "clearWalkWidth": 2.5,
    "laneLayout": [
@@ -257,7 +257,7 @@
    "laneWidth": 5,
    "carriagewayWidth": 10,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2.5,
    "clearWalkWidth": 2.5,
    "laneLayout": [
@@ -317,7 +317,7 @@
    "laneWidth": 5,
    "carriagewayWidth": 10,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2.5,
    "clearWalkWidth": 2.5,
    "laneLayout": [
@@ -372,7 +372,7 @@
    "laneWidth": 5,
    "carriagewayWidth": 10,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2.5,
    "clearWalkWidth": 2.5,
    "laneLayout": [
@@ -418,7 +418,7 @@
    "laneWidth": 5,
    "carriagewayWidth": 10,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2.5,
    "clearWalkWidth": 2.5,
    "laneLayout": [
@@ -464,7 +464,7 @@
    "laneWidth": 5,
    "carriagewayWidth": 10,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2.5,
    "clearWalkWidth": 2.5,
    "laneLayout": [
@@ -510,7 +510,7 @@
    "laneWidth": 5,
    "carriagewayWidth": 10,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2.5,
    "clearWalkWidth": 2.5,
    "laneLayout": [
@@ -556,7 +556,7 @@
    "laneWidth": 4.5,
    "carriagewayWidth": 9,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2,
    "clearWalkWidth": 2,
    "laneLayout": [
@@ -614,7 +614,7 @@
    "laneWidth": 4.5,
    "carriagewayWidth": 9,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2,
    "clearWalkWidth": 2,
    "laneLayout": [
@@ -664,7 +664,7 @@
    "laneWidth": 4.5,
    "carriagewayWidth": 9,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2,
    "clearWalkWidth": 2,
    "laneLayout": [
@@ -724,7 +724,7 @@
    "laneWidth": 4.5,
    "carriagewayWidth": 9,
    "curbWidth": 0.4,
-   "curbHeight": 0.3,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 2,
    "clearWalkWidth": 2,
    "laneLayout": [
@@ -770,7 +770,7 @@
    "laneWidth": 3,
    "carriagewayWidth": 6,
    "curbWidth": 0.3,
-   "curbHeight": 0.25,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 1.5,
    "clearWalkWidth": 1.5,
    "oneWay": true,
@@ -817,7 +817,7 @@
    "laneWidth": 3,
    "carriagewayWidth": 6,
    "curbWidth": 0.3,
-   "curbHeight": 0.25,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 1.5,
    "clearWalkWidth": 1.5,
    "laneLayout": [
@@ -863,7 +863,7 @@
    "laneWidth": 3,
    "carriagewayWidth": 6,
    "curbWidth": 0.3,
-   "curbHeight": 0.25,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 1.5,
    "clearWalkWidth": 1.5,
    "oneWay": true,
@@ -910,7 +910,7 @@
    "laneWidth": 3,
    "carriagewayWidth": 6,
    "curbWidth": 0.3,
-   "curbHeight": 0.25,
+   "curbHeight": 0.125,
    "furnishingStripWidth": 1.5,
    "clearWalkWidth": 1.5,
    "laneLayout": [

@@ -87,3 +87,10 @@ def test_data_dir_override(tmp_path, monkeypatch):
     (tmp_path / "london.json").write_text('{"schema": 99}', encoding="utf-8")
     with pytest.raises(ValueError, match="schema"):
         data.load_london()
+
+
+def test_kerbs_are_uk_height_and_steppable(london):
+    from dca.units import KERB_HEIGHT, STEP_HEIGHT
+
+    assert {r.curb_height for r in london.roads} == {KERB_HEIGHT}
+    assert KERB_HEIGHT < STEP_HEIGHT

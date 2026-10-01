@@ -81,6 +81,16 @@ def test_sky_is_set(world):
     assert scene.world and scene.world.name == "Sky"
 
 
+def test_pavements_sit_one_kerb_above_the_road(world):
+    from dca.units import KERB_HEIGHT, STEP_HEIGHT
+
+    _, _, meshes = world
+    surfaces = [o for o in meshes if o["dca_kind"] == "surface"]
+    tops = {round(build_world.world_bounds([o])[1].z, 3) for o in surfaces}
+    assert KERB_HEIGHT + 0.01 in tops  # pavement quads sit 1 cm over the kerb top
+    assert max(tops) <= STEP_HEIGHT - 0.05  # roundabout islands are the highest, at 0.15 m
+
+
 def test_saved_game_keeps_textures_packed(tmp_path: Path):
     out = build_game.build(tmp_path / "dca.blend")
     bpy.ops.wm.open_mainfile(filepath=str(out))
