@@ -18,6 +18,12 @@ from pathlib import Path
 import bpy
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:  # UPBGE runs this file directly
+    sys.path.insert(0, str(ROOT))
+
+from dca.units import from_prototype  # noqa: E402
+from tools.build_world import build_world  # noqa: E402
+
 PACKAGES = ("dca", "game")
 DATA_FILES = ("london.json", "zones.json")  # runtime map data; probes.json is for tests only
 
@@ -35,9 +41,10 @@ def reset_scene() -> bpy.types.Scene:
     scene = bpy.context.scene
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
-    for child in list(scene.collection.children):
-        bpy.data.collections.remove(child)
-    for datablocks in (bpy.data.meshes, bpy.data.lights, bpy.data.cameras, bpy.data.materials):
+    for coll in list(bpy.data.collections):
+        bpy.data.collections.remove(coll)
+    blocks = (bpy.data.meshes, bpy.data.lights, bpy.data.cameras, bpy.data.materials, bpy.data.images)
+    for datablocks in blocks:
         for block in list(datablocks):
             datablocks.remove(block)
     scene.name = "London"
@@ -46,23 +53,18 @@ def reset_scene() -> bpy.types.Scene:
     return scene
 
 
-def add_ground(scene: bpy.types.Scene, size: float = 100.0) -> bpy.types.Object:
-    half = size / 2
-    mesh = bpy.data.meshes.new("Ground")
-    corners = [(-half, -half, 0), (half, -half, 0), (half, half, 0), (-half, half, 0)]
-    mesh.from_pydata(corners, [], [(0, 1, 2, 3)])
-    obj = bpy.data.objects.new("Ground", mesh)
-    scene.collection.objects.link(obj)
-    return obj
-
-
 def add_sun_and_camera(scene: bpy.types.Scene) -> None:
-    sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
+    light = bpy.data.lights.new("Sun", "SUN")
+    light.energy = 3.0
+    sun = bpy.data.objects.new("Sun", light)
     sun.rotation_euler = (0.8, 0.2, 0.6)
     scene.collection.objects.link(sun)
     cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
-    cam.location = (0.0, -12.0, 6.0)
-    cam.rotation_euler = (1.1, 0.0, 0.0)
+    # Behind the spawn pavement (prototype (450, 272)) looking north up Regent Street's side.
+    x, y = from_prototype(450.0, 272.0)
+    cam.location = (x, y - 14.0, 6.0)
+    cam.rotation_euler = (1.25, 0.0, 0.0)
+    cam.data.clip_end = 1000.0
     scene.collection.objects.link(cam)
     scene.camera = cam
 
@@ -111,7 +113,7 @@ def build(out: Path) -> Path:
     out = out.resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     scene = reset_scene()
-    add_ground(scene)
+    build_world(scene)
     add_sun_and_camera(scene)
     add_game_driver(scene)
     configure_engine(scene)

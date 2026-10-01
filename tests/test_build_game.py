@@ -21,7 +21,7 @@ def test_build_writes_blend_and_ships_packages(tmp_path: Path):
     assert scene.unit_settings.system == "METRIC"
     assert {"Ground", "Sun", "Camera", "Game"} <= set(scene.objects.keys())
     assert scene.camera.name == "Camera"
-    assert scene.objects["Ground"].dimensions.x == 100.0
+    assert round(scene.objects["Ground"].dimensions.x) == 800
 
 
 def test_build_replaces_whatever_was_in_the_scene(tmp_path: Path):
