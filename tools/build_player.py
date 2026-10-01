@@ -157,6 +157,7 @@ def _capsule(coll: bpy.types.Collection) -> bpy.types.Object:
     player["dca_step_height"] = units.STEP_HEIGHT
     player["dca_max_slope_deg"] = units.MAX_SLOPE_DEG
     player["dca_jump_speed"] = units.JUMP_SPEED
+    player["dca_collision_group"] = units.PLAYER_GROUP
     game = getattr(player, "game", None)
     if game is not None:  # UPBGE: character controller on a capsule of exactly the box's size
         game.physics_type = "CHARACTER"
@@ -166,6 +167,7 @@ def _capsule(coll: bpy.types.Collection) -> bpy.types.Object:
         game.jump_speed = units.JUMP_SPEED
         if hasattr(game, "max_slope"):
             game.max_slope = math.radians(units.MAX_SLOPE_DEG)
+        game.collision_group = [bool(units.PLAYER_GROUP & (1 << i)) for i in range(16)]
     return player
 
 

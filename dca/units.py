@@ -30,3 +30,9 @@ def from_prototype(x: float, z: float) -> tuple[float, float]:
 def to_prototype(x: float, y: float) -> tuple[float, float]:
     """Blender ground point -> prototype ground point (inverse of from_prototype)."""
     return x, -y
+
+# Collision groups (UPBGE: 16 bits). The world is group 1; the player is group 2, so rays cast
+# with WORLD_MASK (ground probes, the camera's pull-in) see the streets but not the player.
+WORLD_GROUP = 0x0001
+PLAYER_GROUP = 0x0002
+WORLD_MASK = WORLD_GROUP

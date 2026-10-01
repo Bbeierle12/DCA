@@ -45,6 +45,8 @@ def test_capsule_matches_the_body(player):
     assert capsule["dca_step_height"] == units.STEP_HEIGHT == 0.25
     assert capsule["dca_max_slope_deg"] == 45.0
     assert capsule["dca_jump_speed"] == pytest.approx(units.JUMP_SPEED)
+    assert capsule["dca_collision_group"] == units.PLAYER_GROUP
+    assert not units.PLAYER_GROUP & units.WORLD_MASK  # world probes never hit the player
 
 
 def test_every_segment_rides_a_bone(player):

@@ -91,7 +91,7 @@ SEGMENTS = (
 )
 
 MATERIALS = {  # linear RGB
-    "skin": (0.80, 0.55, 0.42),
+    "skin": (0.45, 0.26, 0.17),  # linear; reads as a mid skin tone through Filmic
     "shirt": (0.10, 0.25, 0.55),
     "trousers": (0.12, 0.12, 0.14),
     "shoes": (0.05, 0.04, 0.03),

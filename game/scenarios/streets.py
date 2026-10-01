@@ -9,8 +9,9 @@ from collections import Counter
 
 from mathutils import Euler
 
-from dca import perf
+from dca import perf, units
 from dca.world import World
+from game import main
 
 
 def kind_of(obj):
@@ -32,9 +33,12 @@ def run(ctx):
     ctx.metric("spawn_place", world.place_at(*spawn))
 
     cam = scene.active_camera
+    ctx.check("measuring through the scene camera", cam.name == "Camera", cam.name)
+    if main.instance() is not None:
+        main.instance().camera_follow = False  # this scenario drives the camera itself
     probe = scene.objects["Game"]
     for label, x, y in perf.key_spots(world):
-        hit, point, _ = probe.rayCast((x, y, -5.0), (x, y, 3.0))
+        hit, point, _ = probe.rayCast((x, y, -5.0), (x, y, 3.0), 0, "", 0, 0, 0, units.WORLD_MASK)
         detail = [kind_of(hit), hit.name, round(point[2], 2)] if hit is not None else None
         # Something solid at standing height (pavement top is 0.26-0.31 m; a low kerbside prop is
         # fine to stand on). Decor has no collision, so the ray never hits it.
@@ -49,6 +53,7 @@ def run(ctx):
 
         turn(0.0)
         yield from ctx.wait_frames(20)
+        yield from ctx.screenshot(label)  # what the measured view looks like
         yield from ctx.measure(seconds=perf.SPOT_SECONDS, label=label, each_frame=turn)
         stats = ctx.metrics[label]
         ctx.check(f"{label}: avg >= {perf.GOAL_AVG_FPS:.0f}, 1%-low >= {perf.GOAL_LOW1_FPS:.0f} fps",
