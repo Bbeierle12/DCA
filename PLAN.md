@@ -69,8 +69,10 @@ Brandon then runs check 7 and sets `STATUS: COMPLETE`.
 - **D11 Renderer cost vs. goal 3.** DECIDED 2026-10-01 (Brandon: "test UPBGE 0.36"; it held
   720p/60, so D7 switched). With the camera turning, UPBGE 0.50's EEVEE cost ~16 ms per frame
   at 1280x720 on the Radeon iGPU even for a bare ground plane; the city ran 38-50 fps. UPBGE
-  0.36.1 (legacy EEVEE) runs the same city at 97-107 fps on defaults and 116-145 fps with soft
-  shadows off, 512 px cascades and 1 TAA sample. Remaining gap is hitches, not throughput:
+  0.36.1 (legacy EEVEE) ran the same measurement at 97-107 fps on defaults and 116-145 fps
+  with soft shadows off, 512 px cascades and 1 TAA sample. Correction (C1): in 0.36 those runs
+  rendered through a stuck default view of the map corner, not the measured camera; through
+  the real camera the city runs ~77-80 fps uncapped (still > 60). Remaining gap is hitches, not throughput:
   1%-lows were 43-61 fps with a 90-120 fps cap (B5 continues). 0.50 stays re-testable via
   `DCA_UPBGE=0.50` (`tools/upbge-0.50.json`).
 - **D9 The three.js prototype** (Phases 0-1 of plan v1, `web/` after A2) is retired as a game.
@@ -136,27 +138,29 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
   AC: bpy test checks 800 m extent, object budget, every material valid.
 - [x] B4 (17937a8; 2214/2214 probe names and 10/10 spawn searches match the TS) Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
   cases as the prototype ((430, 260) -> "Oxford Circus", spawn on `clear_walk`).
-- [x] B5 (b229ea2 + PC run 2026-10-01; UPBGE 0.36.1, lite EEVEE, 90 cap: avg 89.8-89.9, 1%-low 79.5-85.6 fps at all 4 spots, 3 of 3 runs, 0 frames over 22 ms, with Chrome/Steam/CurseForge closed) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
+- [x] B5 (re-measured 6e653b1 after the camera fix: avg 74.3-74.9, 1%-low 46.9-52.5 fps at all 4 spots, 75 fps cap; the first B5 numbers were measured through a stuck default view, see LOG) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
   goal 3 (join by material per chunk, instancing for props, LOD or culling if needed).
 
 Exit: the world loads in UPBGE and meets goal 3 with an empty street.
-PROVEN 2026-10-01 (PC `verify.py --upbge` OK: 58 tests in UPBGE's Blender, smoke and streets PASS;
-streets avg 89.9 / 1%-low 82.4 fps overall at 1280x720).
+PROVEN 2026-10-01, RE-PROVEN after the camera fix (PC `verify.py --upbge` at 6e653b1: streets
+avg 74.6 / 1%-low 50.0 fps overall at 1280x720, through the scene camera, screenshots checked).
 
 ## Phase C - Player
 
-- [ ] C1 Player character from a bpy script: 1.75 m low-poly figure with an armature
+- [x] C1 (459de5e, 6b90cfe kerbs; bpy test 1.75 m, capsule 0.5 x 0.5 x 1.75 m; on the PC feet settle at 0.135 m on the pavement) Player character from a bpy script: 1.75 m low-poly figure with an armature
   (idle, walk, run actions), character physics capsule, step height 0.25 m, max slope 45 deg.
   AC: bpy test height 1.75 +/- 0.05.
-- [ ] C2 Controller component: WASD + Shift run, camera-relative movement, 3 / 6 m/s; the
+- [x] C2 (d5def7c; scenario walk: 2 s forward = 6.02 m, 1 s run = 6.02 m) Controller component: WASD + Shift run, camera-relative movement, 3 / 6 m/s; the
   movement maths lives in `dca/` and is unit-tested. AC: scenario 4b.
-- [ ] C3 Third-person camera: mouse orbit, wheel zoom, pull-in on collision.
+- [x] C3 (9b96d7e; camera_walk: 750 frames, 0 blocked, 0 inside, 79 pull-ins, 30 m walked) Third-person camera: mouse orbit, wheel zoom, pull-in on collision.
   AC: scenario check camera-in-geometry passes on a street walk.
-- [ ] C4 HUD overlay: money, energy, place name, prompts. AC: scenario 4a reads the HUD text.
-- [ ] C5 Save/load (`dca/save.py`, versioned JSON with migrations, in the user's app-data
+- [x] C4 (0313b6b; new_game reads "Oxford Circus", "£100", "Energy 100%"; screenshot checked) HUD overlay: money, energy, place name, prompts. AC: scenario 4a reads the HUD text.
+- [x] C5 (6e653b1; 9 pytest cases; persist_write/persist_read: autosave at 10 s, quit, relaunch within 5 cm, money and camera restored) Save/load (`dca/save.py`, versioned JSON with migrations, in the user's app-data
   folder); autosave every 10 s and on quit. AC: pytest + scenario quit/relaunch.
 
 Exit: walk London at human scale at 60 fps with a working camera and save.
+PROVEN 2026-10-01 (PC `verify.py --upbge` at 6e653b1: 100 tests, 8 scenarios PASS; camera_walk
+avg 75.0 / 1%-low 52.4 fps while walking with the orbiting camera; walk 4b; new_game 4a; save).
 
 ## Phase D - Walk-in buildings (Blender kit)
 

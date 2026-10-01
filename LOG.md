@@ -272,3 +272,41 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
 - PC `verify.py --upbge`: lint OK, 58 tests in UPBGE 0.36.1's Blender, build OK, smoke PASS
   (89.8 / 82.7), streets PASS (89.9 / 82.4; worst frame 13.8 ms). Phase B exit proven.
 - Next: Phase C (player). C1 must reconcile the 0.3 m kerbs with the planned 0.25 m step height.
+
+## 2026-10-01 - Phase C: player, camera, HUD, save (C1-C5), and a measurement correction
+
+- Kerbs: the prototype's 0.3 m kerbs exceeded the 0.25 m step height. Lowered to 0.125 m
+  (UK-typical 100-125 mm upstand; Wolfram|Alpha had no kerb data, this is from UK practice) in
+  WorldConfigV2 (`KERB_HEIGHT`); map and glb re-exported; zones unchanged. Pavement top 0.135 m.
+- Wolfram|Alpha / Wolfram Language used for: adult long-bone lengths (femur 0.435, tibia 0.373,
+  humerus 0.292, radius 0.225 m) scaled from 1.768 m mean male height (HumanGrowthData) to the
+  1.75 m body; typical walking speed 1.1 m/s (so the plan's 3 m/s walk is a brisk game pace, kept
+  because goal 4b fixes it); jump speed sqrt(2 g 0.4 m) = 2.801 m/s; 28 mm lens = 65.5 deg
+  horizontal FOV.
+- C1 `tools/build_player.py` + `dca/body.py`: 11-bone armature, 14 rigid box segments,
+  procedural idle/walk/run cycles (bpy test: feet alternate), capsule 0.5 x 0.5 x 1.75 m with
+  UPBGE character physics. UPBGE 0.36 capsule = mesh height exactly (source:
+  CcdPhysicsEnvironment.cpp: height = 2 * (half_z - radius)). Player in collision group 2.
+- MEASUREMENT CORRECTION: UPBGE 0.36's blenderplayer rendered from the saved free-orbit 3D view
+  ("__default__cam__") because headless-saved files keep the factory view; moving any camera
+  changed nothing on screen. So the B5/D11 0.36 numbers (avg 89.9 / 1%-low 82 etc.) measured a
+  static view of the map corner. Fixed by saving all 3D views in camera view and selecting
+  Camera at start (screenshots now confirm). Real numbers: see below; goal 3 still holds.
+- Timing: UPBGE's fixed-rate mode runs int(elapsed * ticrate) ticks per frame and drops the
+  remainder (KX_KetsjiEngine::GetFrameTimes), so at 75 fps with a 90 Hz tic rate the game ran at
+  0.83x speed (2 s walk = 5.07 m). Switched to the variable time step (one tick + one physics
+  step of the real elapsed time per frame); walkDirection = velocity * dt (it is a per-step
+  displacement in Bullet's kinematic controller). Harness now times rendered frames by the
+  engine clock. A Python frame limiter (default 75 fps, `--cap N`) replaces the engine cap: on
+  the PC uncapped gave 77-80 fps avg with 1%-lows 34-58 run to run; 75 cap gave 47-53.
+- C2 movement maths `dca/movement.py`; C3 `dca/camera.py` + `game/camera.py` (x-ray world-mask
+  ray from the eye pivot, 0.25 m margin, 0.3 m minimum); C4 HUD drawn with blf in post_draw
+  (no second EEVEE scene); C5 `dca/save.py` (port of SaveGame.ts) in %APPDATA%\DCA, autosave
+  10 s, save on Esc (Pause = engine exit); scenarios use a slot under build/results/saves.
+- PC `verify.py --upbge` at 6e653b1: 100 tests in UPBGE's Blender; smoke 70.7/59.0, streets
+  74.6/50.0 (spots: 74.6/52.1, 74.4/52.5, 74.3/48.7, 74.9/46.9), walk 6.02 m, camera_walk
+  75.0/52.4 with 0 blocked/0 inside/79 pull-ins, new_game "Oxford Circus" "£100", persist
+  round trip within 5 cm. Edge and Docker were running.
+- Notes for later: street props are partly oversized (12 m lamp columns with 0.6-0.8 m thick
+  poles, 1.6 m bollards); the scene uses Filmic, which washes out the prototype's colours; the
+  figure is plain boxes. Candidates for a visual pass.
