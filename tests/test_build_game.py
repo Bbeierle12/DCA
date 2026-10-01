@@ -49,3 +49,15 @@ def test_render_settings_from_the_b5_sweep(tmp_path: Path):
     assert eevee.shadow_cascade_size == "512"
     assert eevee.taa_samples == 1
     assert build_game.FRAME_CAP == 90
+
+
+def test_player_stands_on_the_spawn_pavement(tmp_path: Path):
+    from dca.world import World
+
+    out = build_game.build(tmp_path / "dca.blend")
+    bpy.ops.wm.open_mainfile(filepath=str(out))
+    player = bpy.context.scene.objects["Player"]
+    x, y = World().spawn_point()
+    assert (round(player.location.x, 3), round(player.location.y, 3)) == (x, y)
+    feet = player.location.z - 1.75 / 2
+    assert 0.1 <= feet <= 0.15  # pavement top: 0.125 m kerb + 1 cm

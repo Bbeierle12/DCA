@@ -3,4 +3,5 @@
 SCENARIOS: dict[str, str] = {
     "smoke": "game.scenarios.smoke",
     "streets": "game.scenarios.streets",
+    "walk": "game.scenarios.walk",
 }

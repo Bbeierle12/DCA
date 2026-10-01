@@ -31,4 +31,7 @@ def tick(cont):
             _state["harness"] = Harness(args["scenario"], args.get("results", "results"), args)
     harness = _state["harness"]
     if harness is not None:
-        harness.tick()
+        harness.tick()  # first, so a scenario's input for this frame is in place
+    from game import main
+
+    main.tick()

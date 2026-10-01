@@ -21,7 +21,11 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:  # UPBGE runs this file directly
     sys.path.insert(0, str(ROOT))
 
+from mathutils import Vector  # noqa: E402
+
 from dca.units import from_prototype  # noqa: E402
+from dca.world import World  # noqa: E402
+from tools.build_player import build_player  # noqa: E402
 from tools.build_world import build_world  # noqa: E402
 
 PACKAGES = ("dca", "game")
@@ -43,7 +47,8 @@ def reset_scene() -> bpy.types.Scene:
         bpy.data.objects.remove(obj, do_unlink=True)
     for coll in list(bpy.data.collections):
         bpy.data.collections.remove(coll)
-    blocks = (bpy.data.meshes, bpy.data.lights, bpy.data.cameras, bpy.data.materials, bpy.data.images)
+    blocks = (bpy.data.meshes, bpy.data.lights, bpy.data.cameras, bpy.data.materials, bpy.data.images,
+              bpy.data.armatures, bpy.data.actions)
     for datablocks in blocks:
         for block in list(datablocks):
             datablocks.remove(block)
@@ -51,6 +56,19 @@ def reset_scene() -> bpy.types.Scene:
     scene.unit_settings.system = "METRIC"
     scene.unit_settings.scale_length = 1.0
     return scene
+
+
+def ground_z(scene: bpy.types.Scene, x: float, y: float, top: float = 3.0) -> float:
+    """Height of the first surface below (x, y, top) in the built scene (0 if nothing)."""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    hit, location, *_ = scene.ray_cast(depsgraph, Vector((x, y, top)), Vector((0.0, 0.0, -1.0)))
+    return location.z if hit else 0.0
+
+
+def add_player(scene: bpy.types.Scene) -> bpy.types.Object:
+    """The player stands on the spawn pavement (dca.world), feet on the surface found there."""
+    x, y = World().spawn_point()
+    return build_player(scene, location=(x, y, ground_z(scene, x, y)))
 
 
 def add_sun_and_camera(scene: bpy.types.Scene) -> None:
@@ -99,7 +117,11 @@ FRAME_CAP = 90
 
 
 def configure_render(scene: bpy.types.Scene) -> None:
-    """Legacy EEVEE settings (Blender 3.x names; skipped where a setting does not exist)."""
+    """Legacy EEVEE settings (Blender 3.x names; skipped where a setting does not exist).
+
+    Actions play at the scene frame rate; dca.body.ACTION_FPS assumes 24.
+    """
+    scene.render.fps = 24
     for key, value in EEVEE.items():
         if hasattr(scene.eevee, key):
             setattr(scene.eevee, key, value)
@@ -111,7 +133,8 @@ def configure_engine(scene: bpy.types.Scene) -> None:
     gs = scene.game_settings
     gs.resolution_x, gs.resolution_y = 1280, 720
     gs.use_frame_rate = True
-    gs.fps = FRAME_CAP
+    gs.fps = FRAME_CAP  # also the logic and physics tic rate
+    gs.physics_step_sub = 1  # one physics step per tic: dca.movement.per_step relies on it
     gs.vsync = "OFF"
     gs.exit_key = "ESC"
 
@@ -134,6 +157,7 @@ def build(out: Path) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     scene = reset_scene()
     build_world(scene)
+    add_player(scene)
     add_sun_and_camera(scene)
     add_game_driver(scene)
     configure_render(scene)
