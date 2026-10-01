@@ -93,8 +93,10 @@ The v1 log entries stay in `LOG.md` as history.
   headless anywhere, including the cloud sandbox (until D11: UPBGE 0.50 / bpy 5.0.1).
   Game-only settings (`object.game.*`, components, logic) exist only inside UPBGE, so build
   scripts guard them.
-- The PC is a Ryzen 3 4300U (4 cores, Radeon iGPU), 15 GB RAM, Balanced power plan, with
-  Docker Desktop, Chrome, Steam and CurseForge usually running; expect occasional hitches.
+- The PC is a Ryzen 3 4300U (4 cores, Radeon iGPU), 15 GB RAM, Balanced power plan. Measure
+  performance with Chrome, Steam and CurseForge closed: while they run, 1-9 frames per 10 s take
+  20-90 ms (1%-low 26-55 fps); closed, there were none (1%-low ~80). Docker Desktop and an open
+  Blender made no difference.
 - Character physics: `bge.constraints.getCharacter(obj)` -> `walkDirection`, `onGround`,
   `jump()`, `maxSlope`, `gravity`, `fallSpeed`. Step height is a physics-panel setting.
 - Shipping: File > Export > Save As Game Engine Runtime (add-on) builds an `.exe` that needs
@@ -134,10 +136,12 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
   AC: bpy test checks 800 m extent, object budget, every material valid.
 - [x] B4 (17937a8; 2214/2214 probe names and 10/10 spawn searches match the TS) Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
   cases as the prototype ((430, 260) -> "Oxford Circus", spawn on `clear_walk`).
-- [~] B5 (UPBGE 0.36.1, lite EEVEE, 90 fps cap: avg 86-89 fps at all 4 spots every run; 1%-low >= 45 at all 4 spots in 1 of 3 runs, 26-55 otherwise; next: the 20-50 ms hitches) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
+- [x] B5 (b229ea2 + PC run 2026-10-01; UPBGE 0.36.1, lite EEVEE, 90 cap: avg 89.8-89.9, 1%-low 79.5-85.6 fps at all 4 spots, 3 of 3 runs, 0 frames over 22 ms, with Chrome/Steam/CurseForge closed) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
   goal 3 (join by material per chunk, instancing for props, LOD or culling if needed).
 
 Exit: the world loads in UPBGE and meets goal 3 with an empty street.
+PROVEN 2026-10-01 (PC `verify.py --upbge` OK: 58 tests in UPBGE's Blender, smoke and streets PASS;
+streets avg 89.9 / 1%-low 82.4 fps overall at 1280x720).
 
 ## Phase C - Player
 

@@ -262,3 +262,13 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
   line up with Depsgraph/logic work; try `game.use_frame_rate` vs vsync pacing).
 - The streets footing check now accepts anything solid at standing height (-0.2..0.5 m): the
   Trafalgar spot stands on a 0.33 m kerbside prop.
+
+## 2026-10-01 - B5 done, Phase B exit proven
+
+- Brandon closed Chrome, Steam and CurseForge (Docker Desktop and his Blender stayed open).
+  Three back-to-back streets runs then all passed: avg 89.8-89.9 fps (90 cap), 1%-low 79.5-85.6
+  fps at every spot, zero frames over 22 ms in 12 windows of 10 s. The earlier hitches were
+  those apps, not the game.
+- PC `verify.py --upbge`: lint OK, 58 tests in UPBGE 0.36.1's Blender, build OK, smoke PASS
+  (89.8 / 82.7), streets PASS (89.9 / 82.4; worst frame 13.8 ms). Phase B exit proven.
+- Next: Phase C (player). C1 must reconcile the 0.3 m kerbs with the planned 0.25 m step height.
