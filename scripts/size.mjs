@@ -1,4 +1,5 @@
-// Prints the gzip size of the built JS and fails if it exceeds the budget (KB).
+// Build checks: prints the gzip size of the built JS and fails if it exceeds the budget (KB),
+// or if dist/index.html loads any script from another origin.
 // Usage: node scripts/size.mjs [budgetKB]
 import { readdirSync, readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -20,3 +21,12 @@ if (gz / 1024 > budgetKB) {
   console.error('Bundle over budget.');
   process.exit(1);
 }
+
+// Everything the page runs must be bundled: no scripts from other origins.
+const html = readFileSync('dist/index.html', 'utf8');
+const external = [...html.matchAll(/<script[^>]*\ssrc=["'](https?:)?\/\//gi)];
+if (external.length) {
+  console.error(`dist/index.html loads ${external.length} external script(s).`);
+  process.exit(1);
+}
+console.log('No external scripts in dist/index.html.');

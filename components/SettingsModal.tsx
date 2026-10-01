@@ -158,7 +158,7 @@ export default function SettingsModal({ onClose, config, setConfig, gameState, s
                                 <p className="text-gray-300 text-base">Q - Drop Weapon</p>
                                 <p className="text-gray-300 text-base">Right Click + Drag - Rotate Camera</p>
                                 <p className="text-gray-300 text-base">Scroll - Zoom</p>
-                                <p className="text-gray-300 text-base mt-2 text-cyan-400">` (Backtick) - Toggle Free Camera</p>
+                                <p className="text-base mt-2 text-cyan-400">` (Backtick) - Toggle Free Camera</p>
                             </div>
 
                             <button onClick={onUnstuck} className="w-full bg-red-600 hover:bg-red-500 py-2 rounded font-bold mt-4">
