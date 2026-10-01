@@ -34,3 +34,8 @@ def test_build_replaces_whatever_was_in_the_scene(tmp_path: Path):
 def test_driver_comes_from_the_template():
     assert build_game.TEMPLATE.exists()
     assert build_game.TEMPLATE.stat().st_size > 10_000
+
+
+def test_template_follows_the_blender_line():
+    assert build_game.template_for((5, 0, 1)).name == "game_driver.blend"
+    assert build_game.template_for((3, 6, 2)).name == "game_driver_b3.blend"

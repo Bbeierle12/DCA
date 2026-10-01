@@ -93,7 +93,10 @@ def tune_material(mat: bpy.types.Material) -> None:
         if node.bl_idname == "ShaderNodeBsdfPrincipled":
             node.inputs["Metallic"].default_value = 0.0
             node.inputs["Roughness"].default_value = 1.0
-            node.inputs["Specular IOR Level"].default_value = 0.2
+            # "Specular IOR Level" since Blender 4.0, "Specular" before (UPBGE 0.36 is 3.6).
+            spec = node.inputs.get("Specular IOR Level") or node.inputs.get("Specular")
+            if spec is not None:
+                spec.default_value = 0.2
 
 
 def material_problems(mat: bpy.types.Material) -> list[str]:

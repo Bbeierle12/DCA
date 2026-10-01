@@ -4,12 +4,14 @@
     python scripts/upbge_run.py scenario smoke    run one scenario, print its result
     python scripts/upbge_run.py all               build, then every registered scenario
 
-UPBGE's location comes from tools/upbge.json (relative to the repo root).
+UPBGE's location comes from tools/upbge.json (relative to the repo root); set DCA_UPBGE=0.36 to
+use tools/upbge-0.36.json instead.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -22,8 +24,14 @@ WINDOW = ("1280", "720")
 SCENARIO_TIMEOUT = 300
 
 
+def upbge_config() -> Path:
+    """tools/upbge.json, or tools/upbge-<v>.json when DCA_UPBGE=<v> (e.g. 0.36 for D11)."""
+    version = os.environ.get("DCA_UPBGE", "")
+    return ROOT / "tools" / (f"upbge-{version}.json" if version else "upbge.json")
+
+
 def upbge_paths() -> tuple[Path, Path]:
-    cfg = json.loads((ROOT / "tools" / "upbge.json").read_text())
+    cfg = json.loads(upbge_config().read_text())
     key = "windows" if platform.system() == "Windows" else platform.system().lower()
     if key not in cfg:
         sys.exit(f"tools/upbge.json has no entry for {key}; UPBGE runs on Brandon's PC")

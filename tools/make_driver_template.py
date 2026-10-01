@@ -1,4 +1,4 @@
-"""Creates tools/templates/game_driver.blend: one empty named Game whose Always sensor (pulse on
+"""Creates tools/templates/game_driver*.blend: one empty named Game whose Always sensor (pulse on
 every frame) runs the Python module controller game.boot.tick.
 
 Logic-brick operators crash UPBGE 0.50 in background mode, so this one script runs with the UI:
@@ -11,7 +11,10 @@ from pathlib import Path
 
 import bpy
 
-OUT = Path(__file__).resolve().parent / "templates" / "game_driver.blend"
+# Same rule as tools/build_game.template_for (this script runs inside UPBGE without the repo
+# on sys.path): Blender 4+ writes game_driver.blend, Blender 3.x (UPBGE 0.36) game_driver_b3.blend.
+_NAME = "game_driver.blend" if bpy.app.version >= (4, 0, 0) else "game_driver_b3.blend"
+OUT = Path(__file__).resolve().parent / "templates" / _NAME
 
 
 def find_area():

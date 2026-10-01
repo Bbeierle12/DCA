@@ -69,7 +69,13 @@ def add_sun_and_camera(scene: bpy.types.Scene) -> None:
     scene.camera = cam
 
 
-TEMPLATE = Path(__file__).resolve().parent / "templates" / "game_driver.blend"
+def template_for(version: tuple) -> Path:
+    """Driver template saved by the matching Blender line (a 5.0 file does not open in 3.6)."""
+    name = "game_driver.blend" if tuple(version) >= (4, 0, 0) else "game_driver_b3.blend"
+    return Path(__file__).resolve().parent / "templates" / name
+
+
+TEMPLATE = template_for(bpy.app.version)
 
 
 def add_game_driver(scene: bpy.types.Scene) -> bpy.types.Object:
