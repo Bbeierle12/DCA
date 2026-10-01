@@ -68,6 +68,10 @@ export class ThreeGame {
     // Weapon pickups
     weaponPickups: { mesh: THREE.Group, type: string, x: number, y: number, taken: boolean }[] = [];
 
+    // Debug/test bookkeeping (read through window.__dca)
+    frameCount: number = 0;
+    lastZone: string = '';
+
     // Callbacks
     onZoneChange: (zone: string, level: number) => void;
     onInteract: (type: string, cost: number, msg: string) => void;
@@ -592,14 +596,14 @@ export class ThreeGame {
 
             // Still render
             this.updateCamera(deltaTime);
-            this.renderer.render(this.scene, this.camera);
+            this.renderFrame();
             return;
         }
 
         // In free camera mode, only update camera and render -- skip player logic
         if (this.freeCameraEnabled) {
             this.updateCamera(deltaTime);
-            this.renderer.render(this.scene, this.camera);
+            this.renderFrame();
             return;
         }
 
@@ -813,6 +817,7 @@ export class ThreeGame {
         if (this.playerData.x < 600 && this.playerData.y < 500) zone = "City Center";
         else if (this.playerData.x > 800 && this.playerData.y < 500) zone = "Food Court";
         else if (this.playerData.y > 600) zone = "Home Lot";
+        this.lastZone = zone;
         this.onZoneChange(zone, this.playerData.z);
 
         // Build Highlight
@@ -832,7 +837,36 @@ export class ThreeGame {
         }
 
         this.updateCamera(deltaTime);
+        this.renderFrame();
+    }
+
+    private renderFrame() {
         this.renderer.render(this.scene, this.camera);
+        this.frameCount++;
+    }
+
+    getDebugPlayer() {
+        return {
+            x: this.playerData.x * WORLD_SCALE,
+            y: this.playerGroup.position.y,
+            z: this.playerData.y * WORLD_SCALE,
+            vx: this.playerData.vx * WORLD_SCALE,
+            vz: this.playerData.vy * WORLD_SCALE,
+            floor: this.playerData.z,
+            facing: this.playerData.facing,
+        };
+    }
+
+    getZoneName(): string {
+        return this.lastZone;
+    }
+
+    teleportTo(x: number, z: number) {
+        this.playerData.x = x / WORLD_SCALE;
+        this.playerData.y = z / WORLD_SCALE;
+        this.playerData.vx = 0;
+        this.playerData.vy = 0;
+        this.playerGroup.position.set(x, this.playerData.z * 15, z);
     }
 
     // Collision detection helper - checks if player at (x, y) with bounds (w, h) collides

@@ -4,6 +4,7 @@ import { initAuth, updatePlayerInDb } from './services/firebase';
 import { ThreeGame } from './services/ThreeGame';
 import { GameConfig, GamePhase, GameState, FloatingTextData } from './types';
 import { COMBAT_CONFIG } from './constants';
+import { createDebugApi, installDebugApi } from './services/debug/DebugApi';
 import MainMenu from './components/MainMenu';
 import CharacterCreator from './components/CharacterCreator';
 import HUD from './components/HUD';
@@ -210,6 +211,7 @@ export default function App() {
             }
         );
         gameRef.current = game;
+        const uninstallDebug = installDebugApi(createDebugApi(game, () => gameStateRef.current.money));
 
         const animate = () => {
             if (gameRef.current) {
@@ -243,6 +245,7 @@ export default function App() {
         animate();
 
         return () => {
+            uninstallDebug();
             if(loopRef.current) cancelAnimationFrame(loopRef.current);
             gameRef.current?.cleanup();
             gameRef.current = null;
