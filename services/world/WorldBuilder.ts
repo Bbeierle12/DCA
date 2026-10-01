@@ -7,10 +7,17 @@ import { RoundaboutBuilder } from './RoundaboutBuilder';
 import { IntersectionBuilderV2 } from './IntersectionBuilderV2';
 import { LandscapeBuilder } from './LandscapeBuilder';
 import { FurnitureBuilder } from './FurnitureBuilder';
+import { batchStatic, BatchStats } from './StaticBatcher';
 
 export interface WorldBuildResult {
     zoneMap: ZoneMapV2;
     collidableMeshes: THREE.Object3D[];
+    batch: BatchStats | null;
+}
+
+export interface WorldBuildOptions {
+    /** Merge static meshes into a few draw calls (the game does; tests that count props don't). */
+    batch?: boolean;
 }
 
 export class WorldBuilder {
@@ -20,7 +27,7 @@ export class WorldBuilder {
         this.config = config || createLondonWorldConfig();
     }
 
-    build(scene: THREE.Scene): WorldBuildResult {
+    build(scene: THREE.Scene, options: WorldBuildOptions = {}): WorldBuildResult {
         const zoneMap = new ZoneMapV2(this.config);
         const textures = new TextureFactory(this.config);
         const roads = new PathRoadBuilder(this.config, textures);
@@ -45,7 +52,8 @@ export class WorldBuilder {
             }
         });
 
-        return { zoneMap, collidableMeshes };
+        const batch = options.batch ? batchStatic(scene, { keep: new Set(collidableMeshes) }) : null;
+        return { zoneMap, collidableMeshes, batch };
     }
 
     getConfig(): WorldConfig {

@@ -5,8 +5,20 @@ import { SeededRandom, hashString } from './SeededRandom';
 export class TextureFactory {
     private config: WorldConfig;
 
+    /** One canvas per look; callers get clones that share the image but own their repeat. */
+    private cache = new Map<string, THREE.CanvasTexture>();
+
     constructor(config: WorldConfig) {
         this.config = config;
+    }
+
+    private shared(key: string, make: () => THREE.CanvasTexture): THREE.CanvasTexture {
+        let base = this.cache.get(key);
+        if (!base) {
+            base = make();
+            this.cache.set(key, base);
+        }
+        return base.clone() as THREE.CanvasTexture;
     }
 
     private createRandom(tag: string): SeededRandom {
@@ -14,6 +26,10 @@ export class TextureFactory {
     }
 
     createGrassTexture(): THREE.CanvasTexture {
+        return this.shared('grass', () => this.drawGrass());
+    }
+
+    private drawGrass(): THREE.CanvasTexture {
         const random = this.createRandom('grass');
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
@@ -48,6 +64,12 @@ export class TextureFactory {
     }
 
     createSidewalkTexture(length: number): THREE.CanvasTexture {
+        const tex = this.shared('sidewalk', () => this.drawSidewalk());
+        tex.repeat.set(Math.floor(length / 4), 1);
+        return tex;
+    }
+
+    private drawSidewalk(): THREE.CanvasTexture {
         const canvas = document.createElement('canvas');
         canvas.width = 64; canvas.height = 64;
         const ctx = canvas.getContext('2d')!;
@@ -62,7 +84,6 @@ export class TextureFactory {
         }
         const tex = new THREE.CanvasTexture(canvas);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(Math.floor(length / 4), 1);
         tex.magFilter = THREE.NearestFilter;
         return tex;
     }
@@ -72,8 +93,12 @@ export class TextureFactory {
      * Lane markings are rendered as separate geometry by PathRoadBuilder,
      * so this texture is just the asphalt surface.
      */
-    createSegmentRoadTexture(roadType: RoadType, segmentLength: number): THREE.CanvasTexture {
-        const random = this.createRandom(`road:${roadType}:${Math.round(segmentLength)}`);
+    createSegmentRoadTexture(roadType: RoadType, _segmentLength: number): THREE.CanvasTexture {
+        return this.shared(`road:${roadType}`, () => this.drawRoad(roadType));
+    }
+
+    private drawRoad(roadType: RoadType): THREE.CanvasTexture {
+        const random = this.createRandom(`road:${roadType}`);
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d')!;
@@ -98,6 +123,10 @@ export class TextureFactory {
 
     /** Create a roundabout asphalt texture (circular tiling) */
     createRoundaboutTexture(): THREE.CanvasTexture {
+        return this.shared('roundabout', () => this.drawRoundabout());
+    }
+
+    private drawRoundabout(): THREE.CanvasTexture {
         const random = this.createRandom('roundabout');
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
@@ -123,7 +152,11 @@ export class TextureFactory {
         return new THREE.MeshLambertMaterial({ color: 0x999999 });
     }
 
-    createCrosswalkTexture(width: number, crossingType: CrossingType = 'signal'): THREE.CanvasTexture {
+    createCrosswalkTexture(_width: number, crossingType: CrossingType = 'signal'): THREE.CanvasTexture {
+        return this.shared(`crosswalk:${crossingType}`, () => this.drawCrosswalk(crossingType));
+    }
+
+    private drawCrosswalk(crossingType: CrossingType): THREE.CanvasTexture {
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 64;
         const ctx = canvas.getContext('2d')!;
@@ -152,7 +185,11 @@ export class TextureFactory {
         return tex;
     }
 
-    createStopBarTexture(width: number): THREE.CanvasTexture {
+    createStopBarTexture(_width: number): THREE.CanvasTexture {
+        return this.shared('stopbar', () => this.drawStopBar());
+    }
+
+    private drawStopBar(): THREE.CanvasTexture {
         const canvas = document.createElement('canvas');
         canvas.width = 64; canvas.height = 16;
         const ctx = canvas.getContext('2d')!;
@@ -168,6 +205,13 @@ export class TextureFactory {
     }
 
     createFurnishingStripTexture(length: number): THREE.CanvasTexture {
+        const tex = this.shared('furnishing', () => this.drawFurnishing());
+        tex.repeat.set(Math.floor(length / 3), 1);
+        return tex;
+    }
+
+    private drawFurnishing(): THREE.CanvasTexture {
+        const random = this.createRandom('furnishing');
         const canvas = document.createElement('canvas');
         canvas.width = 64; canvas.height = 64;
         const ctx = canvas.getContext('2d')!;
@@ -179,19 +223,18 @@ export class TextureFactory {
         // Texture variation
         const greens = ['#2E6E2E', '#448844', '#3C7C3C'];
         for (let i = 0; i < 80; i++) {
-            ctx.fillStyle = greens[Math.floor(Math.random() * greens.length)];
-            ctx.fillRect(Math.random() * 64, Math.random() * 64, 1 + Math.random(), 1 + Math.random());
+            ctx.fillStyle = random.pick(greens);
+            ctx.fillRect(random.float(0, 64), random.float(0, 64), 1 + random.next(), 1 + random.next());
         }
 
         // Occasional dirt patches
         for (let i = 0; i < 4; i++) {
             ctx.fillStyle = '#6B5B3A';
-            ctx.fillRect(Math.random() * 64, Math.random() * 64, 3 + Math.random() * 3, 2 + Math.random() * 2);
+            ctx.fillRect(random.float(0, 64), random.float(0, 64), 3 + random.float(0, 3), 2 + random.float(0, 2));
         }
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(Math.floor(length / 3), 1);
         tex.magFilter = THREE.NearestFilter;
         return tex;
     }

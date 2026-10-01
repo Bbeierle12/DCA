@@ -27,12 +27,16 @@ export function createScene(container: HTMLElement): SceneParts {
     const sun = new THREE.DirectionalLight(0xffffff, 0.8);
     sun.position.set(100, 200, 100);
     sun.castShadow = true;
-    sun.shadow.camera.top = 60;
-    sun.shadow.camera.bottom = -60;
-    sun.shadow.camera.left = -60;
-    sun.shadow.camera.right = 60;
+    // Shadows cover 80 m around the player; followSun keeps the box centred on them.
+    sun.shadow.camera.top = 40;
+    sun.shadow.camera.bottom = -40;
+    sun.shadow.camera.left = -40;
+    sun.shadow.camera.right = 40;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 400;
     sun.shadow.mapSize.set(2048, 2048);
     scene.add(sun);
+    scene.add(sun.target);
 
     return { scene, renderer, sun };
 }
@@ -46,4 +50,16 @@ export function setShadowQuality(sun: THREE.DirectionalLight, quality: ShadowQua
 
 export function setRenderDistance(scene: THREE.Scene, distance: number) {
     if (scene.fog instanceof THREE.Fog) scene.fog.far = Math.max(300, Math.min(1000, distance));
+}
+
+const SUN_OFFSET = new THREE.Vector3(50, 100, 50);
+
+/** Keeps the sun's shadow box centred on (x, z), snapped to whole metres to avoid shimmer. */
+export function followSun(sun: THREE.DirectionalLight, x: number, z: number) {
+    const sx = Math.round(x);
+    const sz = Math.round(z);
+    if (sun.target.position.x === sx && sun.target.position.z === sz) return;
+    sun.target.position.set(sx, 0, sz);
+    sun.position.set(sx + SUN_OFFSET.x, SUN_OFFSET.y, sz + SUN_OFFSET.z);
+    sun.target.updateMatrixWorld();
 }

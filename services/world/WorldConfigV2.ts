@@ -665,7 +665,7 @@ export function createLondonWorldConfig(): WorldConfig {
         },
         furniture: {
             streetlightSpacing: 40,
-            maxPointLights: 16,
+            maxPointLights: 0, // lamp heads glow instead; point lights cost every lit pixel
             benchSpacing: 60,
             trashCanSpacing: 80,
             hydrantSpacing: 120,

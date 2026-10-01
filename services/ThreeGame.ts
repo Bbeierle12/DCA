@@ -16,7 +16,7 @@ import { BuildSystem } from './game/BuildSystem';
 import { RemotePlayers } from './game/RemotePlayers';
 import { Pickups } from './game/Pickups';
 import { CombatController, AttackType } from './game/CombatController';
-import { createScene, setRenderDistance, setShadowQuality, ShadowQuality } from './game/SceneSetup';
+import { createScene, followSun, setRenderDistance, setShadowQuality, ShadowQuality } from './game/SceneSetup';
 import { PointerControls } from './game/PointerControls';
 import { createCharacter, disposeObject } from './game/CharacterFactory';
 import { GameOptions, UiState, WorldSave } from './game/GameTypes';
@@ -58,7 +58,7 @@ export class ThreeGame {
         this.rig = new CameraRig(window.innerWidth / window.innerHeight);
 
         const builder = new WorldBuilder();
-        const world = builder.build(this.scene);
+        const world = builder.build(this.scene, { batch: true });
         this.places = new PlaceNamer(builder.getConfig());
         this.occluders.push(...world.collidableMeshes);
         this.zoneMap = world.zoneMap;
@@ -127,6 +127,7 @@ export class ThreeGame {
             this.updatePlayer(dt, time, ui);
             this.rig.follow(this.avatar.position, this.occluders);
         }
+        followSun(this.sun, this.avatar.position.x, this.avatar.position.z);
         this.publish(time);
         this.build.updateHighlight(ui.isBuilding, ui.buildLevel);
         this.renderer.render(this.scene, this.rig.camera);
