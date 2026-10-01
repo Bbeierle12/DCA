@@ -23,6 +23,10 @@ class Game:
         from game.player import PlayerController
 
         self.scene = scene
+        # UPBGE 0.36's player starts on its own "__default__cam__" even though the file's
+        # scene camera is "Camera" (seen 2026-10-01), so pick ours explicitly.
+        if "Camera" in scene.objects:
+            scene.active_camera = scene.objects["Camera"]
         self.player = PlayerController(scene) if "Player" in scene.objects else None
         self.last = time.perf_counter()
 
