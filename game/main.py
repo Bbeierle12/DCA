@@ -29,7 +29,10 @@ def camera_yaw(camera) -> float:
 
 class Game:
     def __init__(self, scene, options: dict | None = None):
+        from dca.state import GameState
+        from dca.world import World
         from game.camera import CameraRig
+        from game.hud import Hud
         from game.player import PlayerController
 
         self.scene = scene
@@ -40,6 +43,10 @@ class Game:
         self.player = PlayerController(scene) if "Player" in scene.objects else None
         self.camera = CameraRig(scene, self.player) if self.player and "Camera" in scene.objects else None
         self.camera_follow = True
+        self.state = GameState()
+        self.world = World()
+        self.hud = Hud(scene)
+        self.played = 0.0
         self.cap = float((options or {}).get("cap", FRAME_CAP))
         self.last = clock()
         self.frame_mark = time.perf_counter()
@@ -58,7 +65,16 @@ class Game:
         self.player.update(game_input.read_intent(), yaw, dt)
         if self.camera and self.camera_follow:
             self.camera.place()
+        self.played += dt
+        self.update_hud()
         self.pace()
+
+    def update_hud(self, interaction: str = "") -> None:
+        from dca.hud import hud_text, prompt_for
+
+        p = self.player.position
+        place = self.world.place_at(p.x, p.y)
+        self.hud.set(hud_text(self.state, place, prompt_for(self.played, interaction)))
 
     def pace(self) -> None:
         """Frame limiter for the variable time step: wait out the rest of 1/cap seconds."""

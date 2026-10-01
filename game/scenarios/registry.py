@@ -6,4 +6,5 @@ SCENARIOS: dict[str, str] = {
     "walk": "game.scenarios.walk",
     "portrait": "game.scenarios.portrait",
     "camera_walk": "game.scenarios.camera_walk",
+    "new_game": "game.scenarios.new_game",
 }
