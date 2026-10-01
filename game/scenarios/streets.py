@@ -36,7 +36,10 @@ def run(ctx):
     for label, x, y in perf.key_spots(world):
         hit, point, _ = probe.rayCast((x, y, -5.0), (x, y, 3.0))
         detail = [kind_of(hit), hit.name, round(point[2], 2)] if hit is not None else None
-        ctx.check(f"{label}: solid ground", hit is not None and kind_of(hit) in ("surface", "ground"), detail)
+        # Something solid at standing height (pavement top is 0.26-0.31 m; a low kerbside prop is
+        # fine to stand on). Decor has no collision, so the ray never hits it.
+        standable = hit is not None and -0.2 <= point[2] <= 0.5
+        ctx.check(f"{label}: solid ground at standing height", standable, detail)
         ground_z = point[2] if hit is not None else 0.0
 
         def turn(t, x=x, y=y, ground_z=ground_z):
