@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
 import { LocalNet } from './services/net/LocalNet';
 import { NetClient } from './services/net/NetClient';
 import { ThreeGame } from './services/ThreeGame';
@@ -7,6 +7,7 @@ import { GameConfig, GamePhase, GameState, FloatingTextData } from './types';
 import { COMBAT_CONFIG } from './constants';
 import { createDebugApi, installDebugApi } from './services/debug/DebugApi';
 import { isTypingTarget } from './services/game/Input';
+import { GameStore } from './services/game/GameStore';
 import MainMenu from './components/MainMenu';
 import CharacterCreator from './components/CharacterCreator';
 import HUD from './components/HUD';
@@ -69,6 +70,10 @@ interface HoverInfo {
 
 export default function App() {
   const [phase, setPhase] = useState<GamePhase>('MENU');
+  const storeRef = useRef<GameStore | null>(null);
+  if (!storeRef.current) storeRef.current = new GameStore({ zone: '', health: COMBAT_CONFIG.MAX_HEALTH, maxHealth: COMBAT_CONFIG.MAX_HEALTH });
+  const store = storeRef.current;
+  const snap = useSyncExternalStore(store.subscribe, store.get);
   const netRef = useRef<NetClient | null>(null);
   if (!netRef.current) netRef.current = new LocalNet();
   const net = netRef.current;
@@ -130,13 +135,11 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPetStore, setShowPetStore] = useState(false);
   const [floatingTexts, setFloatingTexts] = useState<FloatingTextData[]>([]);
-  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [uiHoverInfo, setUiHoverInfo] = useState<HoverInfo | null>(null);
 
   // Refs
   const gameRef = useRef<ThreeGame | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const loopRef = useRef<number>(0);
 
 
   const addFloatingText = (text: string, color: string = 'text-yellow-300') => {
@@ -145,113 +148,54 @@ export default function App() {
       setTimeout(() => setFloatingTexts(prev => prev.filter(t => t.id !== id)), 1000);
   };
 
-  // Start Game Loop when Phase changes to PLAYING
+  // Create the game when entering PLAYING; it owns its render loop.
   useEffect(() => {
     if (phase === 'PLAYING' && containerRef.current) {
-        const game = new ThreeGame(
-            containerRef.current,
+        const game = new ThreeGame({
+            container: containerRef.current,
             net,
             config,
-            // onZoneChange
-            (zone: string, level: number) => {
-                setGameState(prev => {
-                    if (prev.zone !== zone || prev.level !== level) {
-                         return { ...prev, zone, level };
+            store,
+            getUi: () => ({
+                money: gameStateRef.current.money,
+                isBuilding: gameStateRef.current.isBuilding,
+                buildItem: gameStateRef.current.buildItem,
+                buildLevel: buildLevelRef.current,
+                alwaysRun: gameStateRef.current.alwaysRun,
+            }),
+            events: {
+                onInteract: (type: string, cost: number, msg: string) => {
+                    if (type === 'pet') setShowPetStore(true);
+                    else if (type === 'food' || type === 'build') {
+                        setGameState(prev => ({ ...prev, money: prev.money - cost, energy: 100 }));
+                        if (msg) addFloatingText(msg, 'text-yellow-300');
+                    } else if (type === 'error') {
+                        if (msg) addFloatingText(msg, 'text-red-500');
+                    } else if (type === 'pickup' || type === 'drop') {
+                        if (msg) addFloatingText(msg, 'text-green-400');
                     }
-                    return prev;
-                });
+                },
+                onDamageDealt: (amount: number, x: number, y: number) => {
+                    if (!gameStateRef.current.showDamageNumbers) return;
+                    const id = Date.now() + Math.random();
+                    setFloatingTexts(prev => [...prev, { id, x, y, text: `-${amount}`, color: 'text-red-500' }]);
+                    setTimeout(() => setFloatingTexts(prev => prev.filter(t => t.id !== id)), 1000);
+                },
+                onDeath: () => addFloatingText('YOU DIED!', 'text-red-600'),
+                onRespawn: () => addFloatingText('Respawned!', 'text-green-400'),
             },
-            // onInteract
-            (type: string, cost: number, msg: string) => {
-                if (type === 'pet') setShowPetStore(true);
-                else if (type === 'food' || type === 'build') {
-                    setGameState(prev => ({ ...prev, money: prev.money - cost, energy: 100 }));
-                    if(msg) addFloatingText(msg, 'text-yellow-300');
-                } else if (type === 'error') {
-                    if(msg) addFloatingText(msg, 'text-red-500');
-                } else if (type === 'pickup' || type === 'drop') {
-                    if(msg) addFloatingText(msg, 'text-green-400');
-                }
-            },
-            // onHover
-            (info: HoverInfo | null) => {
-                setHoverInfo(info);
-            },
-            // onHealthChange
-            (health: number, maxHealth: number) => {
-                setGameState(prev => ({ ...prev, health, maxHealth }));
-            },
-            // onDamageDealt
-            (amount: number, x: number, y: number) => {
-                // Only show damage numbers if setting is enabled
-                if (!gameStateRef.current.showDamageNumbers) return;
-                const id = Date.now() + Math.random();
-                setFloatingTexts(prev => [...prev, {
-                    id,
-                    x,
-                    y,
-                    text: `-${amount}`,
-                    color: 'text-red-500'
-                }]);
-                setTimeout(() => setFloatingTexts(prev => prev.filter(t => t.id !== id)), 1000);
-            },
-            // onDeath
-            () => {
-                setGameState(prev => ({ ...prev, isDead: true }));
-                addFloatingText('YOU DIED!', 'text-red-600');
-            },
-            // onRespawn
-            () => {
-                setGameState(prev => ({
-                    ...prev,
-                    isDead: false,
-                    health: COMBAT_CONFIG.MAX_HEALTH
-                }));
-                addFloatingText('Respawned!', 'text-green-400');
-            }
-        );
+        });
         gameRef.current = game;
         const uninstallDebug = installDebugApi(createDebugApi(game, () => gameStateRef.current.money));
-
-        const animate = () => {
-            if (gameRef.current) {
-                // Use refs to get the latest state in the loop
-                gameRef.current.update(
-                    gameStateRef.current.money,
-                    gameStateRef.current.isBuilding,
-                    gameStateRef.current.buildItem,
-                    gameStateRef.current.alwaysRun,
-                    buildLevelRef.current
-                );
-
-                // Sync combat state from game to React
-                const gameWeapon = gameRef.current.getWeapon();
-                const gameHealth = gameRef.current.getHealth();
-                const gameIsDead = gameRef.current.isDead();
-
-                if (gameStateRef.current.weapon !== gameWeapon ||
-                    gameStateRef.current.health !== gameHealth ||
-                    gameStateRef.current.isDead !== gameIsDead) {
-                    setGameState(prev => ({
-                        ...prev,
-                        weapon: gameWeapon,
-                        health: gameHealth,
-                        isDead: gameIsDead
-                    }));
-                }
-            }
-            loopRef.current = requestAnimationFrame(animate);
-        };
-        animate();
+        game.start();
 
         return () => {
             uninstallDebug();
-            if(loopRef.current) cancelAnimationFrame(loopRef.current);
-            gameRef.current?.cleanup();
+            game.cleanup();
             gameRef.current = null;
         };
     }
-  }, [phase, net]);
+  }, [phase, net, store]);
 
   // Sync config changes to game
   useEffect(() => {
@@ -288,8 +232,8 @@ export default function App() {
   ]);
 
   const handleInteract = useCallback(() => {
-      gameRef.current?.handleInteraction(gameState.money, gameState.buildItem, buildLevel, gameState.isBuilding);
-  }, [gameState.money, gameState.buildItem, buildLevel, gameState.isBuilding]);
+      gameRef.current?.handleInteraction();
+  }, []);
 
   // Keyboard Listeners for Interaction
   useEffect(() => {
@@ -332,7 +276,8 @@ export default function App() {
       }
   };
 
-  const activeHover = uiHoverInfo || hoverInfo;
+  const activeHover = uiHoverInfo || snap.hover;
+  const hudState: GameState = { ...gameState, zone: snap.zone, level: snap.level, health: snap.health, maxHealth: snap.maxHealth, weapon: snap.weapon, isDead: snap.isDead };
 
   return (
     <div className="relative w-full h-screen bg-gray-900 overflow-hidden">
@@ -370,7 +315,7 @@ export default function App() {
                     {net.mode === 'online' ? 'Online' : 'Solo'}
                 </div>
 
-                <HUD state={gameState} />
+                <HUD state={hudState} />
 
                 {/* Hover Toast */}
                 {gameState.isBuilding && activeHover && gameState.showTooltips && (

@@ -24,9 +24,9 @@ export default defineConfig({
       include: ['services/**/*.ts', 'components/**/*.tsx', 'App.tsx', 'constants.ts'],
       // Ratchet only: raise these as coverage grows, never lower them.
       thresholds: {
-        lines: 58,
-        statements: 58,
-        functions: 85,
+        lines: 70,
+        statements: 70,
+        functions: 86,
         branches: 91,
       },
     },
