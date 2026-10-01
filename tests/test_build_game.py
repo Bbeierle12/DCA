@@ -1,4 +1,4 @@
-"""The game build script works in plain bpy 5.0.1 (UPBGE's base) and produces a loadable file."""
+"""The game build script works in plain bpy (UPBGE's Blender line) and produces a loadable file."""
 
 from pathlib import Path
 
@@ -39,3 +39,13 @@ def test_driver_comes_from_the_template():
 def test_template_follows_the_blender_line():
     assert build_game.template_for((5, 0, 1)).name == "game_driver.blend"
     assert build_game.template_for((3, 6, 2)).name == "game_driver_b3.blend"
+
+
+def test_render_settings_from_the_b5_sweep(tmp_path: Path):
+    out = build_game.build(tmp_path / "dca.blend")
+    bpy.ops.wm.open_mainfile(filepath=str(out))
+    eevee = bpy.context.scene.eevee
+    assert eevee.use_soft_shadows is False
+    assert eevee.shadow_cascade_size == "512"
+    assert eevee.taa_samples == 1
+    assert build_game.FRAME_CAP == 90

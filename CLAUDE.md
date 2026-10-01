@@ -1,6 +1,6 @@
 # DCA - working notes for agents
 
-A game built in Blender and run with UPBGE 0.50 (Blender 5.0.1 base), played on Brandon's
+A game built in Blender and run with UPBGE 0.36.1 (Blender 3.6 base, legacy EEVEE; D11), played on Brandon's
 Windows PC. Plan and loop: `PLAN.md`, `LOOP.md`, `LOG.md`. Brandon directs architecture; check
 `PLAN.md` Decisions before choosing.
 
@@ -10,7 +10,7 @@ Windows PC. Plan and loop: `PLAN.md`, `LOOP.md`, `LOG.md`. Brandon directs archi
 - `game/` - UPBGE runtime code (may import `bge`): `boot.py` is called every frame by the
   `Game` empty's Always sensor; `harness.py` + `scenarios/` run scripted tests.
 - `tools/` - bpy build scripts. `build_game.py` writes `build/dca.blend` and copies `dca/` and
-  `game/` next to it. They must also run in plain `bpy==5.0.1` (guard UPBGE-only RNA).
+  `game/` next to it. They must also run in plain `bpy==3.6.0` (guard UPBGE-only RNA).
   `templates/game_driver.blend` holds the logic bricks (made by `make_driver_template.py`
   with the UI, because logic operators crash UPBGE in background mode).
 - `data/` - map data exported from the prototype. `web/` - the retired three.js prototype
@@ -19,7 +19,9 @@ Windows PC. Plan and loop: `PLAN.md`, `LOOP.md`, `LOG.md`. Brandon directs archi
 
 ## Commands
 
-- Setup: `uv venv --python 3.11 .venv` then `uv pip install -e ".[dev]"` (includes bpy 5.0.1).
+- Setup: `uv venv --python 3.10 .venv` then `uv pip install -e ".[dev]"` (bpy 3.6.0 comes from
+  Blender's own index, configured in `pyproject.toml`; with plain pip add
+  `--extra-index-url https://download.blender.org/pypi/`). Game code must run on Python 3.10.
 - `python scripts/verify.py` - ruff + pytest. The loop's gate everywhere.
 - `python scripts/verify.py --upbge` - also builds in UPBGE headless and runs every scenario
   with `blenderplayer` (Brandon's PC only; a game window opens for each scenario).

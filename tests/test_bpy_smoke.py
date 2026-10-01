@@ -1,10 +1,16 @@
-"""The headless Blender (bpy 5.0.1, same base as UPBGE 0.50) works and uses metres."""
+"""The headless Blender (the bpy wheel of UPBGE's Blender line) works and uses metres."""
+
+import json
+from pathlib import Path
 
 import bpy
 
+UPBGE = json.loads((Path(__file__).resolve().parents[1] / "tools" / "upbge.json").read_text())
+
 
 def test_bpy_matches_upbge_base():
-    assert bpy.app.version[:2] == (5, 0)
+    major, minor = (int(v) for v in UPBGE["blender"].split(".")[:2])
+    assert bpy.app.version[:2] == (major, minor)
 
 
 def test_metric_scene():

@@ -2,15 +2,16 @@
 name = "dca"
 version = "0.1.0"
 description = "DCA: a walk-in London city game built in Blender and run with UPBGE"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.10,<3.11"
 dependencies = []
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
     "ruff>=0.6",
-    # Same Blender as UPBGE 0.50 (built on 5.0.1): lets scene-building code run headless anywhere.
-    "bpy==5.0.1",
+    # Same Blender line as UPBGE 0.36.1 (built on 3.6.2; D11): scene-building code runs headless
+    # anywhere. bpy 3.6 is on Blender's own index, not PyPI (see [tool.uv.sources]).
+    "bpy==3.6.0",
 ]
 
 [build-system]
@@ -20,13 +21,21 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["dca*"]
 
+[[tool.uv.index]]
+name = "blender"
+url = "https://download.blender.org/pypi/"
+explicit = true
+
+[tool.uv.sources]
+bpy = { index = "blender" }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
 
 [tool.ruff]
 line-length = 110
-target-version = "py311"
+target-version = "py310"
 extend-exclude = ["web", ".upbge", "build"]
 
 [tool.ruff.lint]

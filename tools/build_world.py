@@ -1,6 +1,6 @@
 """Builds London into the current scene from `data/london_streets.glb` (B3).
 
-Called by `tools/build_game.py`. Works in plain bpy 5.0.1 for tests; UPBGE-only physics settings
+Called by `tools/build_game.py`. Works in plain bpy (3.6.0) for tests; UPBGE-only physics settings
 are applied only when `object.game` exists. Each object also records its role in custom
 properties (`dca_kind`, `dca_physics`) so tests can check intent without UPBGE.
 

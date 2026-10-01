@@ -1,14 +1,14 @@
 {
-  "version": "0.50",
-  "blender": "5.0.1",
-  "python": "3.11.13",
-  "buildHash": "9fcf0da621c3",
-  "source": "https://github.com/UPBGE/upbge/releases/download/v0.50/upbge-0.50-windows-x64.7z",
-  "sha256": "C59198CBE361AFA9D78F515751D2A34F3DF236F137393111FD8CC4B43E1DCE71",
+  "version": "0.36.1",
+  "blender": "3.6.2",
+  "python": "3.10.12",
+  "buildHash": "191b76bf3e57",
+  "source": "https://github.com/UPBGE/upbge/releases/download/v0.36.1/upbge-0.36.1-windows-x86_64.7z",
+  "sha512": "00AB42581D09AE90AE2CDDA9E2BDD0DF76F2E36D14D63DABD4E74523E920CBF3B07F3B06ABD6F64AA4F68054F2C2E12A20725AB6C57DAAC5106C8F7FA4554B1D",
   "windows": {
-    "dir": ".upbge/upbge-0.50-windows-x64",
+    "dir": ".upbge/upbge-0.36.1-windows-x86_64",
     "blender": "blender.exe",
     "player": "blenderplayer.exe"
   },
-  "install": "Download the .7z above into .upbge/ and extract it there (tar -xf works on Windows 11). Paths are relative to the repo root."
+  "install": "Download the .7z above into .upbge/ and extract it there (tar -xf works on Windows 11). Paths are relative to the repo root. Chosen by D11 (2026-10-01) over 0.50 (tools/upbge-0.50.json, DCA_UPBGE=0.50)."
 }

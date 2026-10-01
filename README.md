@@ -7,13 +7,13 @@ and walk into any building.
 ## Run
 
 ```powershell
-uv venv --python 3.11 .venv
+uv venv --python 3.10 .venv
 uv pip install -e ".[dev]"
 python scripts/verify.py            # lint + tests (logic, data, bpy build)
 python scripts/upbge_run.py all     # build in UPBGE and run the scenarios (needs .upbge/)
 ```
 
-UPBGE 0.50 goes in `.upbge/` (see `tools/upbge.json`).
+UPBGE 0.36.1 goes in `.upbge/` (see `tools/upbge.json`).
 
 ## How work happens
 

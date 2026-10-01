@@ -224,3 +224,21 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
   numbers looked fine). Raised D11; B5 marked `[!]`. PC power plan: Balanced; GPU driver
   31.0.21925.1001 (2026-05-19). Other apps were running during the sweep (Claude, Blender).
 - `dca.egg-info` is no longer tracked (build output).
+
+## 2026-10-01 - D11 decided: UPBGE 0.36.1
+
+- Brandon chose to test UPBGE 0.36.1 (Blender 3.6.2, legacy EEVEE, Python 3.10.12; sha512
+  matched the release file). The build scripts needed two changes: the Principled "Specular"
+  input name, and a driver template saved by Blender 3.6 (`game_driver_b3.blend`, made with
+  `make_driver_template.py` in 0.36's UI). Everything else, glTF import included, worked as is.
+- Streets scenario on 0.36.1 (1280x720, camera turning; avg / 1%-low per spot):
+  - defaults, uncapped: 97-107 / 30-41 (0.50 was 38-43 / 6-33)
+  - GC disabled: no change (not the hitch source)
+  - soft shadows off, 512 cascades, TAA 1 ("lite"), uncapped: 119-145 / 27-49
+  - lite + 75 cap: 74-75 / 37-50; lite + 90 cap: 88-89 / 43-52; lite + 120 cap: 116-117 / 43-61
+  - Hitches are sporadic single frames of 20-90 ms at random points in the turn (1-5 per
+    ~1000 frames); Docker, Chrome, Steam and CurseForge were running.
+- Switched: `tools/upbge.json` is 0.36.1 (0.50 kept as `tools/upbge-0.50.json`,
+  `DCA_UPBGE=0.50`); tests run on bpy 3.6.0 from download.blender.org/pypi with Python 3.10;
+  the build sets lite EEVEE and a 90 fps cap. B5 back to `[~]`: next is the hitches.
+- Sandbox: verify OK on bpy 3.6.0 (58 tests).

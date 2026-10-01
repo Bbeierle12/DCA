@@ -6,7 +6,7 @@ Run with plain bpy (tests):
     from tools import build_game; build_game.build(Path(...))
 
 UPBGE-only settings (`object.game`, `scene.game_settings`) are applied only when present, so the
-same script runs in the bpy 5.0.1 wheel for fast tests.
+same script runs in the bpy 3.6.0 wheel for fast tests.
 """
 
 from __future__ import annotations
@@ -81,8 +81,8 @@ TEMPLATE = template_for(bpy.app.version)
 def add_game_driver(scene: bpy.types.Scene) -> bpy.types.Object:
     """Appends the Game empty whose Always sensor runs game.boot.tick every frame.
 
-    The logic bricks come from a template because UPBGE 0.50 crashes when logic operators run in
-    background mode (see tools/make_driver_template.py).
+    The logic bricks come from a template because logic operators crash UPBGE in background mode
+    (seen with 0.50 on 2026-10-01; see tools/make_driver_template.py).
     """
     with bpy.data.libraries.load(str(TEMPLATE), link=False) as (src, dst):
         dst.objects = ["Game"]
@@ -91,13 +91,27 @@ def add_game_driver(scene: bpy.types.Scene) -> bpy.types.Object:
     return driver
 
 
+# D11/B5, measured on Brandon's PC (UPBGE 0.36.1, 1280x720, camera turning): soft shadows off,
+# 512 px sun cascades and one TAA sample cut the median frame from 9.3 to 6.5 ms; a 90 fps cap
+# leaves the iGPU headroom and gives fewer 22+ ms hitches than running uncapped.
+EEVEE = {"use_soft_shadows": False, "shadow_cascade_size": "512", "taa_samples": 1}
+FRAME_CAP = 90
+
+
+def configure_render(scene: bpy.types.Scene) -> None:
+    """Legacy EEVEE settings (Blender 3.x names; skipped where a setting does not exist)."""
+    for key, value in EEVEE.items():
+        if hasattr(scene.eevee, key):
+            setattr(scene.eevee, key, value)
+
+
 def configure_engine(scene: bpy.types.Scene) -> None:
     if not hasattr(scene, "game_settings"):
         return
     gs = scene.game_settings
     gs.resolution_x, gs.resolution_y = 1280, 720
-    # Uncapped so the harness measures what the PC can actually do; play builds may cap later.
-    gs.use_frame_rate = False
+    gs.use_frame_rate = True
+    gs.fps = FRAME_CAP
     gs.vsync = "OFF"
     gs.exit_key = "ESC"
 
@@ -122,6 +136,7 @@ def build(out: Path) -> Path:
     build_world(scene)
     add_sun_and_camera(scene)
     add_game_driver(scene)
+    configure_render(scene)
     configure_engine(scene)
     bpy.ops.wm.save_as_mainfile(filepath=str(out), check_existing=False)
     copy_packages(out.parent)

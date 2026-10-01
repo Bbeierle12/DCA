@@ -26,7 +26,7 @@ Brandon then runs check 7 and sets `STATUS: COMPLETE`.
 2. **Scale is real:** 1 Blender unit = 1 m. Player 1.75 m +/- 0.05; door openings >= 1.1 m wide
    and >= 2.2 m tall; storey height 3.0 m. Each asserted by an automated test.
 3. **Performance on Brandon's PC** (AMD Radeon integrated graphics, 1280x720, windowed,
-   UPBGE 0.50; D10): average >= 60 fps and 1%-low >= 45 fps at spawn, Oxford Circus and inside
+   UPBGE 0.36.1; D10, D11): average >= 60 fps and 1%-low >= 45 fps at spawn, Oxford Circus and inside
    the shop, measured by the scenario harness over 10 s at each spot.
 4. **Gameplay, scripted end to end** (UPBGE scenario harness, no human input):
    - a. A new game spawns the player on a pavement; the HUD shows a real place name.
@@ -57,23 +57,22 @@ Brandon then runs check 7 and sets `STATUS: COMPLETE`.
 - **D5 Multiplayer transport.** DECIDED: Rust server, no Firebase. 1-2 players.
 - **D6 Buildings are enterable.** DECIDED: every building can be entered; interiors are
   assembled on demand from the kit; furnished interiors for shops and owned buildings.
-- **D7 Engine.** DECIDED 2026-10-01: Blender is the engine. UPBGE 0.50 (stable, released
-  2026-01-06, built on Blender 5.0.1). Pinned; upgrading is a decision, not a task.
+- **D7 Engine.** DECIDED 2026-10-01: Blender is the engine. Pinned to UPBGE 0.36.1 (built on
+  Blender 3.6.2, legacy EEVEE, Python 3.10) since D11; it was 0.50 (Blender 5.0.1) until then.
+  Changing the version is a decision, not a task.
 - **D8 Platform.** DECIDED 2026-10-01: Brandon's Windows PC, keyboard and mouse. Phones are not
   a target.
 - **D10 Goal 3 resolution vs. Brandon's hardware.** DECIDED 2026-10-01 (Brandon): 1280x720 at
   >= 60 fps avg / >= 45 1%-low. Context: the PC is a Ryzen 3 4300U with integrated Radeon
   graphics; an almost empty scene measured avg 65 / 1%-low 16 fps at 1920x1080, 80 / 23 at
   1600x900 and 112 / 36 at 1280x720. The game window and the harness run at 1280x720.
-- **D11 Renderer cost vs. goal 3.** OPEN (raised 2026-10-01 by B5). With the camera turning (the
-  streets scenario), UPBGE 0.50's EEVEE spends ~16 ms per frame at 1280x720 on Brandon's
-  Radeon iGPU even for a scene that is only the ground plane with shadows, fast GI and TAA off
-  (59 fps avg). The full city measures 38-43 fps avg on defaults and 44-50 fps with those
-  features off; 960x540 gives 66-76 fps avg. 1%-lows are 6-37 fps in every variant. The cost
-  scales with pixels, not with content, so goal 3 at 720p is not reachable on UPBGE 0.50 by
-  tuning. Options: (a) test UPBGE 0.36.1 (Blender 3.6, legacy EEVEE, a much cheaper forward
-  renderer) and switch D7 if it holds 720p/60; (b) stay on 0.50 and change goal 3 to 960x540
-  at 60; (c) stay on 0.50 at 720p with a 30 fps target. Needs Brandon's call; B5 waits.
+- **D11 Renderer cost vs. goal 3.** DECIDED 2026-10-01 (Brandon: "test UPBGE 0.36"; it held
+  720p/60, so D7 switched). With the camera turning, UPBGE 0.50's EEVEE cost ~16 ms per frame
+  at 1280x720 on the Radeon iGPU even for a bare ground plane; the city ran 38-50 fps. UPBGE
+  0.36.1 (legacy EEVEE) runs the same city at 97-107 fps on defaults and 116-145 fps with soft
+  shadows off, 512 px cascades and 1 TAA sample. Remaining gap is hitches, not throughput:
+  1%-lows were 43-61 fps with a 90-120 fps cap (B5 continues). 0.50 stays re-testable via
+  `DCA_UPBGE=0.50` (`tools/upbge-0.50.json`).
 - **D9 The three.js prototype** (Phases 0-1 of plan v1, `web/` after A2) is retired as a game.
   It stays only as the source of the London street data and geometry until a Python
   generator replaces it (backlog).
@@ -89,9 +88,13 @@ The v1 log entries stay in `LOG.md` as history.
 
 - Brandon's PC: Windows 11, AMD Radeon integrated graphics, OpenGL 4.6. Blender 5.2.2 LTS is
   installed (Microsoft Store) with the Blender MCP extension. UPBGE was not installed.
-- UPBGE 0.50 is built on Blender 5.0.1, so the PyPI wheel `bpy==5.0.1` (Python 3.11) runs the
-  same scene-building code headless anywhere, including the cloud sandbox. Game-only settings
-  (`object.game.*`, components, logic) exist only inside UPBGE, so build scripts guard them.
+- UPBGE 0.36.1 is built on Blender 3.6.2, so the `bpy==3.6.0` wheel (Python 3.10, from
+  download.blender.org/pypi; PyPI only has bpy >= 4.2) runs the same scene-building code
+  headless anywhere, including the cloud sandbox (until D11: UPBGE 0.50 / bpy 5.0.1).
+  Game-only settings (`object.game.*`, components, logic) exist only inside UPBGE, so build
+  scripts guard them.
+- The PC is a Ryzen 3 4300U (4 cores, Radeon iGPU), 15 GB RAM, Balanced power plan, with
+  Docker Desktop, Chrome, Steam and CurseForge usually running; expect occasional hitches.
 - Character physics: `bge.constraints.getCharacter(obj)` -> `walkDirection`, `onGround`,
   `jump()`, `maxSlope`, `gravity`, `fallSpeed`. Step height is a physics-panel setting.
 - Shipping: File > Export > Save As Game Engine Runtime (add-on) builds an `.exe` that needs
@@ -131,7 +134,7 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
   AC: bpy test checks 800 m extent, object budget, every material valid.
 - [x] B4 (17937a8; 2214/2214 probe names and 10/10 spawn searches match the TS) Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
   cases as the prototype ((430, 260) -> "Oxford Circus", spawn on `clear_walk`).
-- [!] B5 (blocked on D11: EEVEE in UPBGE 0.50 costs ~16 ms/frame at 720p on this GPU with only a ground plane; full city 42-50 fps) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
+- [~] B5 (D11 moved to UPBGE 0.36.1: 97-145 fps avg; 1%-lows 43-61 with a 90-120 cap, hitches remain) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
   goal 3 (join by material per chunk, instancing for props, LOD or culling if needed).
 
 Exit: the world loads in UPBGE and meets goal 3 with an empty street.

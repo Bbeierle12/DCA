@@ -1,7 +1,7 @@
 """Creates tools/templates/game_driver*.blend: one empty named Game whose Always sensor (pulse on
 every frame) runs the Python module controller game.boot.tick.
 
-Logic-brick operators crash UPBGE 0.50 in background mode, so this one script runs with the UI:
+Logic-brick operators crashed UPBGE 0.50 in background mode, so this one script runs with the UI:
     blender --factory-startup --python tools/make_driver_template.py
 It is only needed again if the driver wiring changes; builds append the Game object from the
 template in background mode.
