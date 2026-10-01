@@ -1,4 +1,4 @@
-import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS } from '../../constants';
+import { WORLD_SIZE, COLORS } from '../../constants';
 
 // ===== GEOMETRY PRIMITIVES =====
 
@@ -121,10 +121,6 @@ export interface FurnitureConfig {
 export interface WorldConfig {
     worldWidth: number;
     worldHeight: number;
-    tileSize: number;
-    worldScale: number;
-    mapWidth: number;
-    mapHeight: number;
     colors: typeof COLORS;
     randomSeed: number;
     roads: RoadSegmentConfig[];
@@ -296,8 +292,8 @@ function lane(id: string, name: string, path: PathPoint[], options: RoadPresetOp
 //
 
 export function createLondonWorldConfig(): WorldConfig {
-    const worldWidth = MAP_WIDTH * TILE_SIZE * WORLD_SCALE;
-    const worldHeight = MAP_HEIGHT * TILE_SIZE * WORLD_SCALE;
+    const worldWidth = WORLD_SIZE;
+    const worldHeight = WORLD_SIZE;
 
     const roads: RoadSegmentConfig[] = [
         // ============================================================
@@ -648,10 +644,6 @@ export function createLondonWorldConfig(): WorldConfig {
     return {
         worldWidth,
         worldHeight,
-        tileSize: TILE_SIZE,
-        worldScale: WORLD_SCALE,
-        mapWidth: MAP_WIDTH,
-        mapHeight: MAP_HEIGHT,
         colors: COLORS,
         randomSeed: 19760401,
         roads,

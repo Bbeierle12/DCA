@@ -1,24 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import {
-  TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT,
-  COLORS, PET_COSTS, SPAWN_POINT,
+  WORLD_SIZE, BUILD_TILE, STOREY_HEIGHT, PLAYER_HEIGHT,
+  COLORS, PET_COSTS, SPAWN_TARGET,
   PLAYER_PHYSICS, COMBAT_CONFIG, COMBAT_ATTACKS, WEAPON_SPAWNS
 } from '../../constants';
 
 describe('Constants', () => {
-  describe('world dimensions', () => {
-    it('has valid tile size', () => {
-      expect(TILE_SIZE).toBeGreaterThan(0);
+  describe('world dimensions (metres)', () => {
+    it('spans 800 m and divides evenly into build tiles', () => {
+      expect(WORLD_SIZE).toBe(800);
+      expect(BUILD_TILE).toBe(2);
+      expect(WORLD_SIZE % BUILD_TILE).toBe(0);
     });
 
-    it('has valid world scale', () => {
-      expect(WORLD_SCALE).toBeGreaterThan(0);
-      expect(WORLD_SCALE).toBeLessThanOrEqual(1);
-    });
-
-    it('has valid map dimensions', () => {
-      expect(MAP_WIDTH).toBeGreaterThan(0);
-      expect(MAP_HEIGHT).toBeGreaterThan(0);
+    it('uses real storey and player heights', () => {
+      expect(STOREY_HEIGHT).toBe(3);
+      expect(PLAYER_HEIGHT).toBe(1.75);
     });
   });
 
@@ -46,16 +43,21 @@ describe('Constants', () => {
     });
   });
 
-  describe('SPAWN_POINT', () => {
-    it('has valid coordinates', () => {
-      expect(SPAWN_POINT.x).toBeGreaterThanOrEqual(0);
-      expect(SPAWN_POINT.y).toBeGreaterThanOrEqual(0);
+  describe('SPAWN_TARGET', () => {
+    it('lies inside the world', () => {
+      expect(SPAWN_TARGET.x).toBeGreaterThan(0);
+      expect(SPAWN_TARGET.x).toBeLessThan(WORLD_SIZE);
+      expect(SPAWN_TARGET.z).toBeGreaterThan(0);
+      expect(SPAWN_TARGET.z).toBeLessThan(WORLD_SIZE);
     });
   });
 
   describe('PLAYER_PHYSICS', () => {
     it('run speed is faster than walk speed', () => {
       expect(PLAYER_PHYSICS.RUN_SPEED).toBeGreaterThan(PLAYER_PHYSICS.WALK_SPEED);
+      // Human-scale speeds in m/s
+      expect(PLAYER_PHYSICS.WALK_SPEED).toBe(3);
+      expect(PLAYER_PHYSICS.RUN_SPEED).toBe(6);
     });
 
     it('attack speed multiplier slows movement', () => {

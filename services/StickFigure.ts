@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GameConfig } from '../types';
+import { PLAYER_HEIGHT } from '../constants';
 
 export interface StickFigureParts {
     head: THREE.Mesh;
@@ -28,12 +29,17 @@ export interface StickFigureParts {
 
 export type StickFigureGroup = THREE.Group & {
     parts: StickFigureParts;
+    /** Holds the modelled parts; scaled so the figure stands PLAYER_HEIGHT tall with feet at y = 0. */
+    body: THREE.Group;
     animationState: string;
     animationTime: number;
 };
 
 export function createStickFigure(cfg: GameConfig): StickFigureGroup {
     const group = new THREE.Group() as StickFigureGroup;
+    // Parts are modelled in legacy units (about 14 tall); `body` rescales them to metres.
+    const body = new THREE.Group();
+    body.name = 'body';
 
     // Materials
     const skinMat = new THREE.MeshLambertMaterial({ color: cfg.skin });
@@ -45,7 +51,7 @@ export function createStickFigure(cfg: GameConfig): StickFigureGroup {
     const head = new THREE.Mesh(headGeo, skinMat);
     head.position.y = 11;
     head.castShadow = true;
-    group.add(head);
+    body.add(head);
 
     // Hair (on top of head)
     const hairMat = new THREE.MeshLambertMaterial({ color: cfg.hair });
@@ -53,29 +59,29 @@ export function createStickFigure(cfg: GameConfig): StickFigureGroup {
     const hair = new THREE.Mesh(hairGeo, hairMat);
     hair.position.y = 11.5;
     hair.castShadow = true;
-    group.add(hair);
+    body.add(hair);
 
     // Eyes
     const eyeMat = new THREE.MeshLambertMaterial({ color: cfg.eyes });
     const eyeGeo = new THREE.SphereGeometry(0.2, 8, 8);
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
     leftEye.position.set(-0.5, 11.2, 1.3);
-    group.add(leftEye);
+    body.add(leftEye);
     const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
     rightEye.position.set(0.5, 11.2, 1.3);
-    group.add(rightEye);
+    body.add(rightEye);
 
     // === TORSO ===
     const torsoGeo = new THREE.CylinderGeometry(0.8, 0.6, 5, 8);
     const torso = new THREE.Mesh(torsoGeo, shirtMat);
     torso.position.y = 7;
     torso.castShadow = true;
-    group.add(torso);
+    body.add(torso);
 
     // === LEFT ARM ===
     const leftArmPivot = new THREE.Group();
     leftArmPivot.position.set(-1.2, 9, 0);
-    group.add(leftArmPivot);
+    body.add(leftArmPivot);
 
     const leftUpperArmGeo = new THREE.CylinderGeometry(0.3, 0.25, 2.5, 8);
     const leftUpperArm = new THREE.Mesh(leftUpperArmGeo, shirtMat);
@@ -102,7 +108,7 @@ export function createStickFigure(cfg: GameConfig): StickFigureGroup {
     // === RIGHT ARM ===
     const rightArmPivot = new THREE.Group();
     rightArmPivot.position.set(1.2, 9, 0);
-    group.add(rightArmPivot);
+    body.add(rightArmPivot);
 
     const rightUpperArmGeo = new THREE.CylinderGeometry(0.3, 0.25, 2.5, 8);
     const rightUpperArm = new THREE.Mesh(rightUpperArmGeo, shirtMat);
@@ -133,7 +139,7 @@ export function createStickFigure(cfg: GameConfig): StickFigureGroup {
     // === LEFT LEG ===
     const leftLegPivot = new THREE.Group();
     leftLegPivot.position.set(-0.5, 4.5, 0);
-    group.add(leftLegPivot);
+    body.add(leftLegPivot);
 
     const leftUpperLegGeo = new THREE.CylinderGeometry(0.35, 0.3, 2.5, 8);
     const leftUpperLeg = new THREE.Mesh(leftUpperLegGeo, pantsMat);
@@ -161,7 +167,7 @@ export function createStickFigure(cfg: GameConfig): StickFigureGroup {
     // === RIGHT LEG ===
     const rightLegPivot = new THREE.Group();
     rightLegPivot.position.set(0.5, 4.5, 0);
-    group.add(rightLegPivot);
+    body.add(rightLegPivot);
 
     const rightUpperLegGeo = new THREE.CylinderGeometry(0.35, 0.3, 2.5, 8);
     const rightUpperLeg = new THREE.Mesh(rightUpperLegGeo, pantsMat);
@@ -210,6 +216,15 @@ export function createStickFigure(cfg: GameConfig): StickFigureGroup {
 
     group.animationState = 'idle';
     group.animationTime = 0;
+
+    // Normalise to real size: PLAYER_HEIGHT tall, feet on the ground.
+    body.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(body);
+    const k = PLAYER_HEIGHT / (bounds.max.y - bounds.min.y);
+    body.scale.setScalar(k);
+    body.position.y = -bounds.min.y * k;
+    group.add(body);
+    group.body = body;
 
     // Enable shadows on all meshes
     group.traverse((obj) => {
@@ -335,8 +350,8 @@ export function updateStickFigureColors(figure: StickFigureGroup, cfg: GameConfi
     figure.parts.leftLowerLeg.material = pantsMat;
     figure.parts.rightLowerLeg.material = pantsMat;
 
-    // Update hair - find it by checking second child (after head)
-    figure.children.forEach(child => {
+    // Update hair: the sphere slightly larger than the head
+    figure.body.traverse(child => {
         if (child instanceof THREE.Mesh && child !== figure.parts.head &&
             child.geometry instanceof THREE.SphereGeometry) {
             // Check if it's the hair (larger than head slightly)

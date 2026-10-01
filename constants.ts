@@ -1,8 +1,11 @@
-export const TILE_SIZE = 40;
-export const WORLD_SCALE = 0.2;
-export const MAP_WIDTH = 100;
-export const MAP_HEIGHT = 100;
-export const PLAYER_SCALE = 0.3;
+// Units: 1 three.js unit = 1 metre, y up. The map spans x and z in [0, WORLD_SIZE].
+export const WORLD_SIZE = 800;
+/** Build grid cell edge, metres. */
+export const BUILD_TILE = 2;
+/** Floor-to-floor height, metres. */
+export const STOREY_HEIGHT = 3;
+/** Player standing height, metres. */
+export const PLAYER_HEIGHT = 1.75;
 
 export const COLORS = {
   WOOD: 0x8B4513,
@@ -39,20 +42,21 @@ export const PET_COSTS: Record<string, number> = {
   none: 0
 };
 
-export const SPAWN_POINT = { x: 200, y: 200 };
+/** Where new players appear: the nearest pavement to this point (Oxford Street by Oxford Circus). */
+export const SPAWN_TARGET = { x: 450, z: 272 };
 
-// Player Physics
+// Player Physics (metres, seconds)
 export const PLAYER_PHYSICS = {
-    // Movement speeds (units per second)
-    WALK_SPEED: 120,
-    RUN_SPEED: 200,
+    // Movement speeds (m/s)
+    WALK_SPEED: 3,
+    RUN_SPEED: 6,
 
-    // Acceleration (units per second squared)
-    ACCELERATION: 800,
-    DECELERATION: 900,
+    // Acceleration (m/s^2)
+    ACCELERATION: 20,
+    DECELERATION: 25,
 
-    // Stop velocity threshold when no input
-    STOP_THRESHOLD: 4,
+    // Stop velocity threshold when no input (m/s)
+    STOP_THRESHOLD: 0.1,
 
     // Movement speed multiplier while attacking
     ATTACK_SPEED_MULTIPLIER: 0.35,
@@ -60,12 +64,12 @@ export const PLAYER_PHYSICS = {
     // Render smoothing constant (higher = snappier)
     RENDER_SMOOTHING: 12,
 
-    // Collision bounds (in world units)
-    COLLISION_WIDTH: 24,
-    COLLISION_HEIGHT: 32,
+    // Collision footprint, centred on the player (m)
+    COLLISION_WIDTH: 0.6,
+    COLLISION_HEIGHT: 0.6,
 
-    // Max step size to prevent tunneling at low FPS
-    MAX_STEP: 20,
+    // Max displacement per frame to prevent tunnelling at low FPS (m)
+    MAX_STEP: 0.75,
 };
 
 // Combat Configuration
@@ -146,11 +150,11 @@ export const COMBAT_ATTACKS: {
     }
 };
 
-// Weapon pickup spawn locations (in world coordinates, Home Lot area)
+// Weapon pickup spawn locations (metres; x east, y = world z south). Combat is parked (D4).
 export const WEAPON_SPAWNS = [
-    { x: 400, y: 700, type: 'bat' },
-    { x: 600, y: 800, type: 'sword' },
-    { x: 800, y: 750, type: 'axe' },
-    { x: 500, y: 900, type: 'bat' },
-    { x: 700, y: 850, type: 'sword' },
+    { x: 80, y: 140, type: 'bat' },
+    { x: 120, y: 160, type: 'sword' },
+    { x: 160, y: 150, type: 'axe' },
+    { x: 100, y: 180, type: 'bat' },
+    { x: 140, y: 170, type: 'sword' },
 ];

@@ -36,10 +36,6 @@ function createMinimalWorldConfig(): WorldConfig {
   return {
     worldWidth: 200,
     worldHeight: 200,
-    tileSize: 1,
-    worldScale: 1,
-    mapWidth: 200,
-    mapHeight: 200,
     colors: COLORS,
     randomSeed: 12345,
     roads: [

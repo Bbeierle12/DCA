@@ -1,12 +1,15 @@
 
 import * as THREE from 'three';
-import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS, PLAYER_SCALE } from '../constants';
+import { WORLD_SIZE, BUILD_TILE, STOREY_HEIGHT, PLAYER_HEIGHT, SPAWN_TARGET, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS } from '../constants';
 import { GameConfig, HouseBlock, PlayerData } from '../types';
 import { NetClient } from './net/NetClient';
 import { createStickFigure, attachWeapon, StickFigureGroup } from './StickFigure';
 import { createAnimatorState, updateAnimation, triggerAttack, triggerHitReact, getAttackHitFrame, AnimatorState } from './StickFigureAnimator';
 import { createCombatState, updateCombat, startAttack, isInHitWindow, checkHit, applyDamage, getAttackData, CombatState, equipWeapon, dropWeapon } from './CombatSystem';
 import { WorldBuilder } from './world/WorldBuilder';
+import { ZoneMapV2 } from './world/ZoneMapV2';
+import { ZoneType } from './world/WorldConfigV2';
+import { findNearestZonePoint } from './world/Spawn';
 import { Input } from './game/Input';
 
 export class ThreeGame {
@@ -23,12 +26,14 @@ export class ThreeGame {
     config: GameConfig;
 
     // Game State internal
+    // Metres. (x, y) is the centre of the footprint on the ground plane: x = world x, y = world z.
+    // z is the storey index (0 = ground).
     playerData: {
         x: number, y: number, z: number,
-        vx: number, vy: number, // velocity
+        vx: number, vy: number, // velocity (m/s)
         facing: string
     } = {
-        x: 200, y: 200, z: 0,
+        x: SPAWN_TARGET.x, y: SPAWN_TARGET.z, z: 0,
         vx: 0, vy: 0,
         facing: 'down'
     };
@@ -85,6 +90,8 @@ export class ThreeGame {
     houseBlocks: HouseBlock[] = [];
     blockMeshes: Record<string, THREE.Mesh> = {};
     buildings: {x: number, y: number, w: number, h: number}[] = [];
+    zoneMap!: ZoneMapV2;
+    spawnPoint: { x: number; z: number } = { x: SPAWN_TARGET.x, z: SPAWN_TARGET.z };
     collidableMeshes: THREE.Object3D[] = [];
     
     buildHighlight: THREE.Mesh;
@@ -95,10 +102,10 @@ export class ThreeGame {
     cameraState = {
         theta: 0,
         phi: Math.PI / 4,
-        radius: 25,
-        currentRadius: 25,
-        minRadius: 8,
-        maxRadius: 60
+        radius: 7,
+        currentRadius: 7,
+        minRadius: 2.5,
+        maxRadius: 40
     };
     mouseState = { isDown: false, button: -1 };
     
@@ -145,7 +152,7 @@ export class ThreeGame {
         this.scene.background = new THREE.Color(COLORS.SKY);
         this.scene.fog = new THREE.Fog(COLORS.SKY, 100, 700);
 
-        this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = true;
@@ -174,18 +181,24 @@ export class ThreeGame {
         const worldResult = worldBuilder.build(this.scene);
         // Add ground to collidables for raycasting
         worldResult.collidableMeshes.forEach(m => this.collidableMeshes.push(m));
+        this.zoneMap = worldResult.zoneMap;
+        this.spawnPoint = findNearestZonePoint(this.zoneMap, SPAWN_TARGET.x, SPAWN_TARGET.z, ZoneType.CLEAR_WALK)
+            ?? { x: SPAWN_TARGET.x, z: SPAWN_TARGET.z };
+        this.playerData.x = this.spawnPoint.x;
+        this.playerData.y = this.spawnPoint.z;
 
         // Weapon Pickups
         this.initWeaponPickups();
 
         // Player (Stick Figure)
         this.playerGroup = this.createStickFigureMesh(config);
-        this.playerGroup.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
+        this.playerGroup.position.set(this.playerData.x, 0, this.playerData.y);
         this.scene.add(this.playerGroup);
+        this.snapCamera();
 
         // Builder Highlight
         this.buildHighlight = new THREE.Mesh(
-            new THREE.BoxGeometry(TILE_SIZE*WORLD_SCALE, TILE_SIZE*WORLD_SCALE, TILE_SIZE*WORLD_SCALE),
+            new THREE.BoxGeometry(BUILD_TILE, STOREY_HEIGHT, BUILD_TILE),
             new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true })
         );
         this.buildHighlight.visible = false;
@@ -235,13 +248,15 @@ export class ThreeGame {
             ctx.fillStyle = 'white'; ctx.font = '40px Arial';
             ctx.textAlign = 'center'; ctx.fillText(cfg.name, 128, 45);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.position.y = 16; sprite.scale.set(10, 2.5, 1);
+            sprite.position.y = PLAYER_HEIGHT + 0.4; sprite.scale.set(1.4, 0.35, 1);
             figure.add(sprite);
         }
 
         if (cfg.pet && cfg.pet !== 'none') {
             const pm = this.createPetMesh(cfg.pet);
-            pm.position.set(4, 0, 4); figure.add(pm);
+            // Pet meshes are modelled in legacy units; 0.13 brings a dog to roughly knee height.
+            pm.scale.setScalar(0.13);
+            pm.position.set(0.7, 0, 0.5); figure.add(pm);
         }
 
         // Tags
@@ -262,7 +277,8 @@ export class ThreeGame {
     initWeaponPickups() {
         WEAPON_SPAWNS.forEach(spawn => {
             const pickup = this.createWeaponPickupMesh(spawn.type);
-            pickup.position.set(spawn.x * WORLD_SCALE, 2, spawn.y * WORLD_SCALE);
+            pickup.scale.setScalar(0.25);
+            pickup.position.set(spawn.x, 0.5, spawn.y);
             this.scene.add(pickup);
             this.weaponPickups.push({
                 mesh: pickup,
@@ -319,7 +335,7 @@ export class ThreeGame {
         this.weaponPickups.forEach(pickup => {
             if (!pickup.taken) {
                 // Floating animation
-                pickup.mesh.position.y = 2 + Math.sin(Date.now() * 0.003) * 0.5;
+                pickup.mesh.position.y = 0.5 + Math.sin(Date.now() * 0.003) * 0.1;
                 pickup.mesh.rotation.y += deltaTime * 2;
 
                 // Check if player can pick up
@@ -328,7 +344,7 @@ export class ThreeGame {
                     this.playerData.y - pickup.y
                 );
 
-                if (dist < 30 && !this.combatState.weapon) {
+                if (dist < 1.5 && !this.combatState.weapon) {
                     // Pick up weapon
                     pickup.taken = true;
                     pickup.mesh.visible = false;
@@ -377,7 +393,6 @@ export class ThreeGame {
     updateOtherPlayer(id: string, data: PlayerData) {
         if (!this.otherPlayers[id]) {
             const mesh = this.createStickFigureMesh(data as GameConfig);
-            mesh.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
             this.scene.add(mesh);
             this.otherPlayers[id] = {
                 mesh,
@@ -387,7 +402,7 @@ export class ThreeGame {
         } else {
             const p = this.otherPlayers[id] as any;
             // Visual update
-            const target = new THREE.Vector3(data.x * WORLD_SCALE, (data.z || 0) * 15, data.y * WORLD_SCALE);
+            const target = new THREE.Vector3(data.x, (data.z || 0) * STOREY_HEIGHT, data.y);
             p.mesh.position.lerp(target, 0.3);
 
             // Update rotation based on facing
@@ -400,7 +415,6 @@ export class ThreeGame {
             if (p.data.skin !== data.skin || p.data.pet !== data.pet || p.data.shirt !== data.shirt) {
                 this.scene.remove(p.mesh);
                 p.mesh = this.createStickFigureMesh(data as GameConfig);
-                p.mesh.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
                 this.scene.add(p.mesh);
                 p.animatorState = createAnimatorState();
             }
@@ -479,7 +493,10 @@ export class ThreeGame {
 
         this.houseBlocks.push(data);
         
-        const size = TILE_SIZE * WORLD_SCALE;
+        const size = BUILD_TILE;
+        const baseY = data.z * STOREY_HEIGHT;
+        const cx = data.x + size / 2;
+        const cz = data.y + size / 2;
         let mesh: THREE.Mesh;
         let color = COLORS.WOOD;
         let label = "Structure";
@@ -505,19 +522,20 @@ export class ThreeGame {
         if (data.type === 'floor') {
             mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
             mesh.rotation.x = -Math.PI/2;
-            mesh.position.set(data.x * WORLD_SCALE + size/2, (data.z * 15) + 0.1, data.y * WORLD_SCALE + size/2);
+            mesh.position.set(cx, baseY + 0.05, cz);
             this.collidableMeshes.push(mesh);
         } else if (data.type === 'stairs') {
-            mesh = new THREE.Mesh(new THREE.BoxGeometry(size, 15, size), mat);
-            mesh.position.set(data.x * WORLD_SCALE + size/2, (data.z * 15) + 7.5, data.y * WORLD_SCALE + size/2);
+            mesh = new THREE.Mesh(new THREE.BoxGeometry(size, STOREY_HEIGHT, size), mat);
+            mesh.position.set(cx, baseY + STOREY_HEIGHT / 2, cz);
         } else if (data.type === 'flower') {
-             mesh = new THREE.Mesh(new THREE.SphereGeometry(size/3, 8, 8), new THREE.MeshLambertMaterial({color: 0xff0000}));
-             mesh.position.set(data.x * WORLD_SCALE + size/2, (data.z * 15) + 2, data.y * WORLD_SCALE + size/2);
+             mesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshLambertMaterial({color: 0xff0000}));
+             mesh.position.set(cx, baseY + 0.3, cz);
         } else {
-             const h = (data.type === 'wood' || data.type === 'stone') ? 15 : 6;
+             const isWall = data.type === 'wood' || data.type === 'stone';
+             const h = isWall ? STOREY_HEIGHT : (data.type === 'bed' ? 0.6 : 0.8);
              mesh = new THREE.Mesh(new THREE.BoxGeometry(size, h, size), mat);
-             mesh.position.set(data.x * WORLD_SCALE + size/2, (data.z * 15) + h/2, data.y * WORLD_SCALE + size/2);
-             if (h > 10) this.collidableMeshes.push(mesh);
+             mesh.position.set(cx, baseY + h / 2, cz);
+             if (isWall) this.collidableMeshes.push(mesh);
         }
         
         mesh.castShadow = true; 
@@ -726,8 +744,8 @@ export class ThreeGame {
         }
 
         // Boundaries
-        this.playerData.x = Math.max(0, Math.min(MAP_WIDTH * TILE_SIZE - pw, this.playerData.x));
-        this.playerData.y = Math.max(0, Math.min(MAP_HEIGHT * TILE_SIZE - ph, this.playerData.y));
+        this.playerData.x = Math.max(pw / 2, Math.min(WORLD_SIZE - pw / 2, this.playerData.x));
+        this.playerData.y = Math.max(ph / 2, Math.min(WORLD_SIZE - ph / 2, this.playerData.y));
 
         // Second floor fall - check if standing on an actual floor tile
         if (this.playerData.z === 1) {
@@ -737,7 +755,7 @@ export class ThreeGame {
         }
 
         // Update Mesh
-        const targetPos = new THREE.Vector3(this.playerData.x * WORLD_SCALE, (this.playerData.z * 15), this.playerData.y * WORLD_SCALE);
+        const targetPos = new THREE.Vector3(this.playerData.x, this.playerData.z * STOREY_HEIGHT, this.playerData.y);
         const positionLerp = 1 - Math.exp(-PLAYER_PHYSICS.RENDER_SMOOTHING * deltaTime);
         this.playerGroup.position.lerp(targetPos, positionLerp);
 
@@ -773,8 +791,8 @@ export class ThreeGame {
         if (currentTime - this.lastNetSend >= 0.1) {
             this.lastNetSend = currentTime;
             this.net.sendPlayerState({
-                x: Math.round(this.playerData.x),
-                y: Math.round(this.playerData.y),
+                x: Math.round(this.playerData.x * 100) / 100,
+                y: Math.round(this.playerData.y * 100) / 100,
                 z: this.playerData.z,
                 facing: this.playerData.facing,
                 lastActive: Date.now(),
@@ -791,23 +809,23 @@ export class ThreeGame {
 
         // Zone Check
         let zone = "Streets";
-        if (this.playerData.x < 600 && this.playerData.y < 500) zone = "City Center";
-        else if (this.playerData.x > 800 && this.playerData.y < 500) zone = "Food Court";
-        else if (this.playerData.y > 600) zone = "Home Lot";
+        if (this.playerData.x < 120 && this.playerData.y < 100) zone = "City Center";
+        else if (this.playerData.x > 160 && this.playerData.y < 100) zone = "Food Court";
+        else if (this.playerData.y > 120) zone = "Home Lot";
         this.lastZone = zone;
         this.onZoneChange(zone, this.playerData.z);
 
         // Build Highlight
-        if (isBuilding && zone === "Home Lot") {
+        if (isBuilding) {
+            const cell = this.cursorCell();
             this.buildHighlight.visible = true;
-
-            const gx = Math.round(this.buildCursorPos.x / TILE_SIZE) * TILE_SIZE;
-            const gy = Math.round(this.buildCursorPos.y / TILE_SIZE) * TILE_SIZE;
-
+            (this.buildHighlight.material as THREE.MeshBasicMaterial).color.set(
+                this.canBuildAt(cell.x, cell.y) ? 0xffff00 : 0xff3333
+            );
             this.buildHighlight.position.set(
-                gx * WORLD_SCALE + (TILE_SIZE * WORLD_SCALE) / 2,
-                (buildLevel * 15) + 5,
-                gy * WORLD_SCALE + (TILE_SIZE * WORLD_SCALE) / 2
+                cell.x + BUILD_TILE / 2,
+                buildLevel * STOREY_HEIGHT + STOREY_HEIGHT / 2,
+                cell.y + BUILD_TILE / 2
             );
         } else {
             this.buildHighlight.visible = false;
@@ -824,11 +842,11 @@ export class ThreeGame {
 
     getDebugPlayer() {
         return {
-            x: this.playerData.x * WORLD_SCALE,
+            x: this.playerData.x,
             y: this.playerGroup.position.y,
-            z: this.playerData.y * WORLD_SCALE,
-            vx: this.playerData.vx * WORLD_SCALE,
-            vz: this.playerData.vy * WORLD_SCALE,
+            z: this.playerData.y,
+            vx: this.playerData.vx,
+            vz: this.playerData.vy,
             floor: this.playerData.z,
             facing: this.playerData.facing,
         };
@@ -843,77 +861,94 @@ export class ThreeGame {
         return this.lastZone;
     }
 
-    teleportTo(x: number, z: number) {
-        this.playerData.x = x / WORLD_SCALE;
-        this.playerData.y = z / WORLD_SCALE;
-        this.playerData.vx = 0;
-        this.playerData.vy = 0;
-        this.playerGroup.position.set(x, this.playerData.z * 15, z);
+    getGroundZone(): string {
+        return this.zoneMap.getZone(this.playerData.x, this.playerData.y);
     }
 
-    // Collision detection helper - checks if player at (x, y) with bounds (w, h) collides
+    teleportTo(x: number, z: number) {
+        this.playerData.x = x;
+        this.playerData.y = z;
+        this.playerData.vx = 0;
+        this.playerData.vy = 0;
+        this.playerGroup.position.set(x, this.playerData.z * STOREY_HEIGHT, z);
+        this.snapCamera();
+    }
+
+    // Collision helper: does a w x h footprint centred on (x, y) overlap anything solid on this storey?
     checkCollision(x: number, y: number, w: number, h: number): boolean {
-        // Check buildings
+        const minX = x - w / 2, maxX = x + w / 2;
+        const minY = y - h / 2, maxY = y + h / 2;
         if (this.playerData.z === 0) {
             for (const b of this.buildings) {
-                if (x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y) {
-                    return true;
-                }
+                if (minX < b.x + b.w && maxX > b.x && minY < b.y + b.h && maxY > b.y) return true;
             }
         }
-
-        // Check blocks (walls/tables)
         for (const block of this.houseBlocks) {
             if (block.z !== this.playerData.z) continue;
             if (block.type !== 'wood' && block.type !== 'stone' && block.type !== 'table') continue;
-
-            if (x < block.x + TILE_SIZE && x + w > block.x &&
-                y < block.y + TILE_SIZE && y + h > block.y) {
+            if (minX < block.x + BUILD_TILE && maxX > block.x &&
+                minY < block.y + BUILD_TILE && maxY > block.y) {
                 return true;
             }
         }
-
         return false;
     }
 
-    // Check if player is standing on a floor tile (for second floor logic)
+    // Is the player standing on a floor tile or stairs (upper-storey logic)?
     isOnFloorTile(): boolean {
-        const pw = PLAYER_PHYSICS.COLLISION_WIDTH;
-        const ph = PLAYER_PHYSICS.COLLISION_HEIGHT;
-
-        // Check center and corners of player bounds
+        const hw = PLAYER_PHYSICS.COLLISION_WIDTH / 2;
+        const hh = PLAYER_PHYSICS.COLLISION_HEIGHT / 2;
+        const { x, y, z } = this.playerData;
         const checkPoints = [
-            { x: this.playerData.x + pw / 2, y: this.playerData.y + ph / 2 }, // center
-            { x: this.playerData.x, y: this.playerData.y }, // top-left
-            { x: this.playerData.x + pw, y: this.playerData.y }, // top-right
-            { x: this.playerData.x, y: this.playerData.y + ph }, // bottom-left
-            { x: this.playerData.x + pw, y: this.playerData.y + ph }, // bottom-right
+            { x, y },
+            { x: x - hw, y: y - hh }, { x: x + hw, y: y - hh },
+            { x: x - hw, y: y + hh }, { x: x + hw, y: y + hh },
         ];
-
         for (const point of checkPoints) {
-            const tileX = Math.floor(point.x / TILE_SIZE) * TILE_SIZE;
-            const tileY = Math.floor(point.y / TILE_SIZE) * TILE_SIZE;
-
-            // Check if there's a floor tile at this position on current z level
-            const hasFloor = this.houseBlocks.some(b =>
-                b.type === 'floor' &&
-                b.z === this.playerData.z &&
-                b.x === tileX &&
-                b.y === tileY
-            );
-
-            if (hasFloor) return true;
+            const tileX = Math.floor(point.x / BUILD_TILE) * BUILD_TILE;
+            const tileY = Math.floor(point.y / BUILD_TILE) * BUILD_TILE;
+            if (this.houseBlocks.some(b => b.type === 'floor' && b.z === z && b.x === tileX && b.y === tileY)) {
+                return true;
+            }
         }
-
-        // Also check for stairs
-        const stairCheck = this.houseBlocks.some(b =>
-            b.type === 'stairs' &&
-            b.z === this.playerData.z &&
-            this.playerData.x < b.x + TILE_SIZE && this.playerData.x + pw > b.x &&
-            this.playerData.y < b.y + TILE_SIZE && this.playerData.y + ph > b.y
+        return this.houseBlocks.some(b =>
+            b.type === 'stairs' && b.z === z &&
+            x - hw < b.x + BUILD_TILE && x + hw > b.x &&
+            y - hh < b.y + BUILD_TILE && y + hh > b.y
         );
+    }
 
-        return stairCheck;
+    /** Grid cell (south-west corner, metres) under the build cursor. */
+    cursorCell(): { x: number; y: number } {
+        return {
+            x: Math.floor(this.buildCursorPos.x / BUILD_TILE) * BUILD_TILE,
+            y: Math.floor(this.buildCursorPos.y / BUILD_TILE) * BUILD_TILE,
+        };
+    }
+
+    /** Building is allowed off the street network: open land, never roads or pavements. */
+    canBuildAt(x: number, y: number): boolean {
+        const cx = x + BUILD_TILE / 2;
+        const cz = y + BUILD_TILE / 2;
+        if (cx < 0 || cz < 0 || cx > WORLD_SIZE || cz > WORLD_SIZE) return false;
+        const zone = this.zoneMap.getZone(cx, cz);
+        return zone === ZoneType.OPEN_LANDSCAPE || zone === ZoneType.PERIMETER;
+    }
+
+    /** Can the player build within reach of where they stand? */
+    canBuildNearPlayer(): boolean {
+        const { x, y } = this.playerData;
+        for (let dx = -6; dx <= 6; dx += BUILD_TILE) {
+            for (let dy = -6; dy <= 6; dy += BUILD_TILE) {
+                if (this.canBuildAt(x + dx, y + dy)) return true;
+            }
+        }
+        return false;
+    }
+
+    resetToSpawn() {
+        this.playerData.z = 0;
+        this.teleportTo(this.spawnPoint.x, this.spawnPoint.z);
     }
 
     updateCombatHits(currentTime: number) {
@@ -963,9 +998,9 @@ export class ThreeGame {
 
     handleRespawn() {
         // Reset position to spawn point
-        this.playerData.x = 200;
-        this.playerData.y = 200;
         this.playerData.z = 0;
+        this.playerData.x = this.spawnPoint.x;
+        this.playerData.y = this.spawnPoint.z;
         // Reset velocity
         this.playerData.vx = 0;
         this.playerData.vy = 0;
@@ -1062,7 +1097,7 @@ export class ThreeGame {
         // Smooth Zoom
         this.cameraState.currentRadius += (this.cameraState.radius - this.cameraState.currentRadius) * 0.1;
 
-        const target = this.playerGroup.position.clone().add(new THREE.Vector3(0, 3, 0));
+        const target = this.playerGroup.position.clone().add(new THREE.Vector3(0, PLAYER_HEIGHT * 0.85, 0));
 
         // Calculate offset based on spherical coords
         const x = this.cameraState.currentRadius * Math.sin(this.cameraState.phi) * Math.sin(this.cameraState.theta);
@@ -1079,10 +1114,23 @@ export class ThreeGame {
         let finalOffset = offset;
         if (intersects.length > 0 && intersects[0].distance < offset.length()) {
              // Zoom in if blocked
-             finalOffset = direction.multiplyScalar(intersects[0].distance - 2);
+             finalOffset = direction.multiplyScalar(Math.max(0.3, intersects[0].distance - 0.3));
         }
 
         this.camera.position.lerp(target.clone().add(finalOffset), 0.1);
+        this.camera.lookAt(target);
+    }
+
+    /** Put the follow camera at its resting spot immediately (no lerp), e.g. on spawn. */
+    snapCamera() {
+        const { theta, phi, radius } = this.cameraState;
+        this.cameraState.currentRadius = radius;
+        const target = this.playerGroup.position.clone().add(new THREE.Vector3(0, PLAYER_HEIGHT * 0.85, 0));
+        this.camera.position.set(
+            target.x + radius * Math.sin(phi) * Math.sin(theta),
+            target.y + radius * Math.cos(phi),
+            target.z + radius * Math.sin(phi) * Math.cos(theta),
+        );
         this.camera.lookAt(target);
     }
 
@@ -1156,15 +1204,14 @@ export class ThreeGame {
     handleInteraction(money: number, buildItem: string, buildLevel: number, isBuilding: boolean) {
         // If building, use the cursor position (highlight position)
         if (isBuilding) {
-            const gx = Math.round(this.buildCursorPos.x / TILE_SIZE) * TILE_SIZE;
-            const gy = Math.round(this.buildCursorPos.y / TILE_SIZE) * TILE_SIZE;
-            this.attemptBuildAt(gx, gy, money, buildItem, buildLevel);
+            const cell = this.cursorCell();
+            this.attemptBuildAt(cell.x, cell.y, money, buildItem, buildLevel);
             return;
         }
 
         // Otherwise, check interactions near player
-        const gridX = Math.round(this.playerData.x / TILE_SIZE) * TILE_SIZE;
-        const gridY = Math.round(this.playerData.y / TILE_SIZE) * TILE_SIZE;
+        const gridX = Math.floor(this.playerData.x / BUILD_TILE) * BUILD_TILE;
+        const gridY = Math.floor(this.playerData.y / BUILD_TILE) * BUILD_TILE;
 
         // Check Stairs (Player Feet)
         const stair = this.houseBlocks.find(b => b.type === 'stairs' && b.x === gridX && b.y === gridY && b.z === this.playerData.z);
@@ -1175,15 +1222,14 @@ export class ThreeGame {
 
         // Shops (Distance Check)
         const dist = (x: number, y: number) => Math.hypot(this.playerData.x - x, this.playerData.y - y);
-        if (dist(550, 140) < 80) this.onInteract('pet', 0, '');
-        else if (dist(1150, 140) < 80 && money >= 5) this.onInteract('food', 5, 'Yummy Pizza!');
-        else if (dist(950, 140) < 80 && money >= 5) this.onInteract('food', 5, 'Tasty Burger!');
+        if (dist(110, 28) < 16) this.onInteract('pet', 0, '');
+        else if (dist(230, 28) < 16 && money >= 5) this.onInteract('food', 5, 'Yummy Pizza!');
+        else if (dist(190, 28) < 16 && money >= 5) this.onInteract('food', 5, 'Tasty Burger!');
     }
 
     attemptBuildAt(x: number, y: number, money: number, buildItem: string, buildLevel: number) {
-         // Double check zone (Rough check for Home Lot > 600)
-         if (y <= 600) {
-             this.onInteract('error', 0, "Go to Home Lot!");
+         if (!this.canBuildAt(x, y)) {
+             this.onInteract('error', 0, "Can't build on roads or pavements!");
              return;
          }
 
@@ -1260,14 +1306,14 @@ export class ThreeGame {
             this.raycaster.setFromCamera(this.mouse, this.camera);
             
             // Project cursor to current build level plane
-            const planeY = (this.cachedState.buildLevel * 15);
+            const planeY = this.cachedState.buildLevel * STOREY_HEIGHT;
             const p = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
             const point = new THREE.Vector3();
             this.raycaster.ray.intersectPlane(p, point);
             
             if (point) {
-                this.buildCursorPos.x = point.x / WORLD_SCALE;
-                this.buildCursorPos.y = point.z / WORLD_SCALE;
+                this.buildCursorPos.x = point.x;
+                this.buildCursorPos.y = point.z;
             }
         }
     }
@@ -1284,12 +1330,10 @@ export class ThreeGame {
             this.mouseState.button = 2;
         } else if (e.button === 0) { // Left Click
             if (this.cachedState.isBuilding) {
-                const gx = Math.round(this.buildCursorPos.x / TILE_SIZE) * TILE_SIZE;
-                const gy = Math.round(this.buildCursorPos.y / TILE_SIZE) * TILE_SIZE;
-
+                const cell = this.cursorCell();
                 this.attemptBuildAt(
-                    gx,
-                    gy,
+                    cell.x,
+                    cell.y,
                     this.cachedState.money,
                     this.cachedState.buildItem,
                     this.cachedState.buildLevel
@@ -1345,7 +1389,7 @@ export class ThreeGame {
             // Scroll adjusts free camera speed
             this.freeCameraSpeed = Math.max(20, Math.min(2000, this.freeCameraSpeed * (1 - e.deltaY * 0.001)));
         } else {
-            this.adjustZoom(e.deltaY * 0.1);
+            this.adjustZoom(e.deltaY * 0.01);
         }
     }
 

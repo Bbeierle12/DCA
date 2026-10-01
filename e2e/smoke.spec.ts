@@ -22,6 +22,16 @@ test('starts the game and renders frames', async ({ page }) => {
   errs.assertClean();
 });
 
+test('spawns on a pavement at human scale', async ({ page }) => {
+  const errs = watchErrors(page);
+  await startGame(page);
+  expect(await page.evaluate(() => window.__dca!.groundZone())).toBe('clear_walk');
+  const p = await player(page);
+  expect(Math.hypot(p.x - 430, p.z - 260)).toBeLessThan(60);
+  expect(p.y).toBeCloseTo(0, 1);
+  errs.assertClean();
+});
+
 test('keyboard moves the player', async ({ page }) => {
   const errs = watchErrors(page);
   await startGame(page);

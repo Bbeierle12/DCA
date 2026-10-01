@@ -310,14 +310,14 @@ export default function App() {
 
   const toggleBuild = () => {
       // Check current zone from ref to be safe, or state
-      if (gameStateRef.current.zone === 'Home Lot') {
+      if (gameRef.current?.canBuildNearPlayer()) {
         setGameState(prev => {
             const newState = !prev.isBuilding;
             addFloatingText(newState ? "Build Mode ON" : "Build Mode OFF");
             return { ...prev, isBuilding: newState };
         });
       } else {
-        addFloatingText("Can't build here!", 'text-red-500');
+        addFloatingText("Find open land to build on!", 'text-red-500');
       }
   };
 
@@ -420,9 +420,7 @@ export default function App() {
                 setGameState={setGameState}
                 onUnstuck={() => {
                     if(gameRef.current) {
-                        gameRef.current.playerData.x = 200;
-                        gameRef.current.playerData.y = 200;
-                        gameRef.current.playerData.z = 0;
+                        gameRef.current.resetToSpawn();
                         setShowSettings(false);
                     }
                 }}

@@ -50,8 +50,8 @@ export default function Controls({ getGame, onInteract, onBuild, onZoom, onAttac
 
             {/* Zoom Controls - Center */}
             <div className="flex flex-col gap-2 pointer-events-auto">
-                <button onClick={() => onZoom(-10)} className="bg-white/20 border-2 border-white rounded-full w-12 h-12 text-white text-2xl flex items-center justify-center active:bg-white/40 hover:bg-white/30 shadow-lg">➕</button>
-                <button onClick={() => onZoom(10)} className="bg-white/20 border-2 border-white rounded-full w-12 h-12 text-white text-2xl flex items-center justify-center active:bg-white/40 hover:bg-white/30 shadow-lg">➖</button>
+                <button onClick={() => onZoom(-2)} className="bg-white/20 border-2 border-white rounded-full w-12 h-12 text-white text-2xl flex items-center justify-center active:bg-white/40 hover:bg-white/30 shadow-lg">➕</button>
+                <button onClick={() => onZoom(2)} className="bg-white/20 border-2 border-white rounded-full w-12 h-12 text-white text-2xl flex items-center justify-center active:bg-white/40 hover:bg-white/30 shadow-lg">➖</button>
             </div>
 
             {/* Attack Controls - Right Side Bottom */}

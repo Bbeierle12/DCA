@@ -39,6 +39,8 @@ export interface DebugApi {
     player: () => DebugPlayerState;
     renderInfo: () => DebugRenderInfo;
     zone: () => string;
+    /** Ground classification under the player, e.g. 'clear_walk', 'carriageway'. */
+    groundZone: () => string;
     money: () => number;
     teleport: (x: number, z: number) => void;
 }
@@ -50,6 +52,7 @@ export interface DebugSource {
     getDebugPlayer(): DebugPlayerState;
     getDebugCamera(): DebugCameraState;
     getZoneName(): string;
+    getGroundZone(): string;
     teleportTo(x: number, z: number): void;
 }
 
@@ -91,6 +94,7 @@ export function createDebugApi(source: DebugSource, getMoney: () => number): Deb
             };
         },
         zone: () => source.getZoneName(),
+        groundZone: () => source.getGroundZone(),
         money: getMoney,
         teleport: (x: number, z: number) => source.teleportTo(x, z),
     } as DebugApi;

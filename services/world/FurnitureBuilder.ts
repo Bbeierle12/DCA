@@ -281,6 +281,8 @@ export class FurnitureBuilder {
 
         seat.userData.hoverLabel = 'Bench';
         seat.userData.hoverType = 'Furniture';
+        // Modelled oversize; 0.33 gives a 1.65 m bench with a 0.66 m seat.
+        group.scale.setScalar(0.33);
         return group;
     }
 
@@ -302,6 +304,8 @@ export class FurnitureBuilder {
 
         body.userData.hoverLabel = 'Bin';
         body.userData.hoverType = 'Furniture';
+        // Modelled oversize; 0.4 gives a 1.1 m litter bin.
+        group.scale.setScalar(0.4);
         return group;
     }
 
@@ -319,6 +323,8 @@ export class FurnitureBuilder {
 
         body.userData.hoverLabel = 'Fire Hydrant';
         body.userData.hoverType = 'Furniture';
+        // Modelled oversize; 0.4 gives a 1.1 m hydrant.
+        group.scale.setScalar(0.4);
         return group;
     }
 
