@@ -19,8 +19,9 @@ import { CombatController, AttackType } from './game/CombatController';
 import { createScene, setRenderDistance, setShadowQuality, ShadowQuality } from './game/SceneSetup';
 import { PointerControls } from './game/PointerControls';
 import { createCharacter, disposeObject } from './game/CharacterFactory';
-import { GameOptions, UiState } from './game/GameTypes';
+import { GameOptions, UiState, WorldSave } from './game/GameTypes';
 import { CursorTools } from './game/CursorTools';
+import { playerNetState } from './net/PlayerSync';
 
 export type { GameOptions, UiState, GameEvents } from './game/GameTypes';
 
@@ -68,9 +69,13 @@ export class ThreeGame {
         this.build = new BuildSystem(this.scene, this.zoneMap, this.occluders);
         this.remotes = new RemotePlayers(this.scene);
         this.pickups = FEATURES.combat ? new Pickups(this.scene) : null;
+        if (opts.restore) {
+            Object.assign(this.player, { x: opts.restore.player.x, y: opts.restore.player.z, level: opts.restore.player.level });
+            if (opts.net.mode === 'solo') opts.restore.blocks.forEach(b => this.build.addBlock(b));
+        }
 
         this.avatar = createCharacter(opts.config);
-        this.avatar.position.set(this.player.x, 0, this.player.y);
+        this.avatar.position.set(this.player.x, this.player.level * STOREY_HEIGHT, this.player.y);
         this.scene.add(this.avatar);
         this.rig.snap(this.avatar.position);
         this.cursor = new CursorTools(this.scene, this.rig.camera, this.build, opts);
@@ -168,14 +173,7 @@ export class ThreeGame {
         const c = this.combat.state;
         if (time - this.lastNetSend >= 0.1) {
             this.lastNetSend = time;
-            this.opts.net.sendPlayerState({
-                x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, z: p.level,
-                facing: p.facing, lastActive: Date.now(),
-                combat: {
-                    isAttacking: c.isAttacking, attackType: c.attackType, attackStartTime: c.attackStartTime,
-                    health: c.health, weapon: c.weapon, isDead: c.isDead,
-                },
-            });
+            this.opts.net.sendPlayerState(playerNetState(p, c));
         }
         const wasDead = this.opts.store.get().isDead;
         this.opts.store.set({
@@ -262,6 +260,12 @@ export class ThreeGame {
         this.rig.snap(this.avatar.position);
     }
 
+    /** What a solo save needs from the world. */
+    saveState(): WorldSave {
+        const p = this.player;
+        return { player: { x: p.x, z: p.y, level: p.level }, blocks: this.build.blocks.map(b => ({ ...b })) };
+    }
+
     // Debug API sources (window.__dca)
     getDebugPlayer() {
         const p = this.player;
@@ -273,6 +277,7 @@ export class ThreeGame {
     }
     getZoneName() { return this.opts.store.get().zone; }
     getGroundZone() { return this.zoneMap.getZone(this.player.x, this.player.y); }
+    getBlockCount() { return this.build.blocks.length; }
 
     private onResize = () => {
         this.rig.setAspect(window.innerWidth / window.innerHeight);

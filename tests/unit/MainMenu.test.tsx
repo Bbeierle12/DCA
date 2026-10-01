@@ -18,4 +18,14 @@ describe('MainMenu', () => {
     await userEvent.click(button);
     expect(onStart).toHaveBeenCalledTimes(1);
   });
+
+  it('offers Continue and New Game when a save exists', async () => {
+    const onStart = vi.fn();
+    const onContinue = vi.fn();
+    render(<MainMenu onStart={onStart} onContinue={onContinue} isReady />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'New Game' }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
 });

@@ -42,7 +42,16 @@ export interface DebugApi {
     /** Ground classification under the player, e.g. 'clear_walk', 'carriageway'. */
     groundZone: () => string;
     money: () => number;
+    /** Number of placed build blocks. */
+    blocks: () => number;
+    /** Writes the solo save immediately. */
+    save: () => void;
     teleport: (x: number, z: number) => void;
+}
+
+export interface DebugExtras {
+    getMoney: () => number;
+    saveNow?: () => void;
 }
 
 export interface DebugSource {
@@ -53,6 +62,7 @@ export interface DebugSource {
     getDebugCamera(): DebugCameraState;
     getZoneName(): string;
     getGroundZone(): string;
+    getBlockCount(): number;
     teleportTo(x: number, z: number): void;
 }
 
@@ -72,7 +82,7 @@ export function countSceneObjects(scene: THREE.Scene): { lights: number; meshes:
     return { lights, meshes };
 }
 
-export function createDebugApi(source: DebugSource, getMoney: () => number): DebugApi {
+export function createDebugApi(source: DebugSource, extras: DebugExtras): DebugApi {
     return {
         get ready() {
             return source.frameCount > 0;
@@ -95,7 +105,9 @@ export function createDebugApi(source: DebugSource, getMoney: () => number): Deb
         },
         zone: () => source.getZoneName(),
         groundZone: () => source.getGroundZone(),
-        money: getMoney,
+        money: extras.getMoney,
+        blocks: () => source.getBlockCount(),
+        save: () => extras.saveNow?.(),
         teleport: (x: number, z: number) => source.teleportTo(x, z),
     } as DebugApi;
 }

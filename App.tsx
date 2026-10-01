@@ -9,6 +9,8 @@ import { createDebugApi, installDebugApi } from './services/debug/DebugApi';
 import { isTypingTarget } from './services/game/Input';
 import { GameStore } from './services/game/GameStore';
 import { FEATURES } from './services/features';
+import { SaveStore, SaveData, browserStorage } from './services/save/SaveGame';
+import { WorldSave } from './services/game/GameTypes';
 import MainMenu from './components/MainMenu';
 import CharacterCreator from './components/CharacterCreator';
 import HUD from './components/HUD';
@@ -79,6 +81,15 @@ export default function App() {
   if (!netRef.current) netRef.current = new LocalNet();
   const net = netRef.current;
   const [config, setConfig] = useState<GameConfig>(DEFAULT_CONFIG);
+  const configRef = useRef(config);
+  useEffect(() => { configRef.current = config; }, [config]);
+
+  // Solo save: Continue restores it; New Game clears it.
+  const saveStoreRef = useRef<SaveStore | null>(null);
+  if (!saveStoreRef.current) saveStoreRef.current = new SaveStore(browserStorage());
+  const saveStore = saveStoreRef.current;
+  const [savedGame, setSavedGame] = useState<SaveData | null>(() => saveStore.load());
+  const restoreRef = useRef<WorldSave | null>(null);
   
   // Game State - merge saved settings with defaults
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -157,6 +168,7 @@ export default function App() {
             net,
             config,
             store,
+            restore: restoreRef.current,
             getUi: () => ({
                 money: gameStateRef.current.money,
                 isBuilding: gameStateRef.current.isBuilding,
@@ -187,16 +199,49 @@ export default function App() {
             },
         });
         gameRef.current = game;
-        const uninstallDebug = installDebugApi(createDebugApi(game, () => gameStateRef.current.money));
+        restoreRef.current = null;
+        const saveNow = () => {
+            const world = game.saveState();
+            saveStore.save({
+                ...world,
+                money: gameStateRef.current.money,
+                energy: gameStateRef.current.energy,
+                appearance: configRef.current,
+            });
+        };
+        const onHidden = () => { if (document.visibilityState === 'hidden') saveNow(); };
+        const autosave = window.setInterval(saveNow, 10_000);
+        document.addEventListener('visibilitychange', onHidden);
+        window.addEventListener('pagehide', saveNow);
+        const uninstallDebug = installDebugApi(createDebugApi(game, { getMoney: () => gameStateRef.current.money, saveNow }));
         game.start();
 
         return () => {
+            saveNow();
+            window.clearInterval(autosave);
+            document.removeEventListener('visibilitychange', onHidden);
+            window.removeEventListener('pagehide', saveNow);
             uninstallDebug();
             game.cleanup();
             gameRef.current = null;
         };
     }
-  }, [phase, net, store]);
+  }, [phase, net, store, saveStore]);
+
+  const startNewGame = () => {
+      saveStore.clear();
+      setSavedGame(null);
+      setGameState(prev => ({ ...prev, money: 100, energy: 100 }));
+      setPhase('CREATOR');
+  };
+
+  const continueGame = () => {
+      if (!savedGame) return;
+      setConfig(savedGame.appearance);
+      setGameState(prev => ({ ...prev, money: savedGame.money, energy: savedGame.energy }));
+      restoreRef.current = { player: savedGame.player, blocks: savedGame.blocks };
+      setPhase('PLAYING');
+  };
 
   // Sync config changes to game
   useEffect(() => {
@@ -254,16 +299,14 @@ export default function App() {
   }, [phase, handleInteract]); 
 
   const toggleBuild = () => {
-      // Check current zone from ref to be safe, or state
-      if (gameRef.current?.canBuildNearPlayer()) {
-        setGameState(prev => {
-            const newState = !prev.isBuilding;
-            addFloatingText(newState ? "Build Mode ON" : "Build Mode OFF");
-            return { ...prev, isBuilding: newState };
-        });
-      } else {
+      // Leaving build mode is always allowed; entering needs open land nearby.
+      const turningOn = !gameStateRef.current.isBuilding;
+      if (turningOn && !gameRef.current?.canBuildNearPlayer()) {
         addFloatingText("Find open land to build on!", 'text-red-500');
+        return;
       }
+      setGameState(prev => ({ ...prev, isBuilding: turningOn }));
+      addFloatingText(turningOn ? "Build Mode ON" : "Build Mode OFF");
   };
 
   const handlePetPurchase = (type: string, cost: number) => {
@@ -291,7 +334,8 @@ export default function App() {
         {/* Main Menu */}
         {phase === 'MENU' && (
             <MainMenu 
-                onStart={() => setPhase('CREATOR')} 
+                onStart={startNewGame}
+                onContinue={savedGame ? continueGame : undefined}
                 isReady={true} 
             />
         )}

@@ -1,4 +1,4 @@
-import { GameConfig } from '../../types';
+import { GameConfig, HouseBlock } from '../../types';
 import { NetClient } from '../net/NetClient';
 import { GameStore } from './GameStore';
 
@@ -19,6 +19,12 @@ export interface GameEvents {
     onRespawn?(): void;
 }
 
+/** World state a solo save restores (money/energy/appearance live in React). */
+export interface WorldSave {
+    player: { x: number; z: number; level: number };
+    blocks: HouseBlock[];
+}
+
 export interface GameOptions {
     container: HTMLElement;
     net: NetClient;
@@ -26,4 +32,6 @@ export interface GameOptions {
     store: GameStore;
     getUi: () => UiState;
     events: GameEvents;
+    /** Solo save to restore on start. */
+    restore?: WorldSave | null;
 }

@@ -50,3 +50,18 @@ describe('LocalNet', () => {
     net.dispose();
   });
 });
+
+import { playerNetState } from '../../services/net/PlayerSync';
+import { createPlayerState } from '../../services/game/PlayerController';
+import { createCombatState } from '../../services/CombatSystem';
+
+describe('playerNetState', () => {
+  it('rounds positions to centimetres and carries level, facing and combat', () => {
+    const p = createPlayerState(450.12345, 272.98765);
+    p.level = 1;
+    p.facing = 'left';
+    const s = playerNetState(p, createCombatState(), 123);
+    expect(s).toMatchObject({ x: 450.12, y: 272.99, z: 1, facing: 'left', lastActive: 123 });
+    expect(s.combat?.health).toBe(100);
+  });
+});
