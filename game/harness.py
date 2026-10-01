@@ -28,6 +28,7 @@ class ScenarioContext:
         self.metrics: dict = {}
         self.frame_times: list[float] = []  # only while measuring
         self.measuring = False
+        self.window: list[float] | None = None  # frame times of the current labelled window
 
     @property
     def scene(self):
@@ -42,14 +43,31 @@ class ScenarioContext:
         while time.perf_counter() < end:
             yield
 
-    def measure(self, frames: int | None = None, seconds: float | None = None):
-        """Records frame times for a window (warm-up frames before it are excluded)."""
+    def measure(self, frames: int | None = None, seconds: float | None = None, label: str | None = None,
+                each_frame=None):
+        """Records frame times for a window (warm-up frames before it are excluded).
+
+        With `label`, the window's own stats go to metrics[label]. `each_frame(t)` runs before
+        every frame with t in [0, 1) through the window (e.g. to turn the camera).
+        """
         self.measuring = True
+        window: list[float] = []
+        self.window = window if label else None
         if frames is not None:
-            yield from self.wait_frames(frames)
+            for i in range(frames):
+                if each_frame:
+                    each_frame(i / frames)
+                yield
         if seconds is not None:
-            yield from self.wait_seconds(seconds)
+            start = time.perf_counter()
+            while (now := time.perf_counter()) < start + seconds:
+                if each_frame:
+                    each_frame((now - start) / seconds)
+                yield
         self.measuring = False
+        self.window = None
+        if label:
+            self.metric(label, frame_stats(window).as_dict())
 
     def check(self, label: str, ok: bool, detail=None):
         self.checks.append({"label": label, "ok": bool(ok), "detail": detail})
@@ -82,6 +100,8 @@ class Harness:
             dt = now - self.last
             if self.ctx.measuring:
                 self.ctx.frame_times.append(dt)
+                if self.ctx.window is not None:
+                    self.ctx.window.append(dt)
             if self.ctx.frame <= 10:
                 self.warmup += dt
         self.last = now
