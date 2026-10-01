@@ -50,3 +50,26 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
 - Combat ranges/knockback are still in their old values; combat is parked (D4). Revisit if
   combat returns.
 - Screenshot check: player is human-sized next to Regent Street lanes and the bus lane.
+
+## 2026-10-01 - P1.4 Split ThreeGame
+- ThreeGame 1,427 -> 296 lines; systems in services/game/*. React reads `GameStore` via
+  useSyncExternalStore; the game owns its rAF loop (`start()`), and reads React state through
+  `getUi()` refs. Remote players now smooth every frame. Pickup respawn uses the game clock.
+- Coverage thresholds raised to lines/statements 70, functions 86.
+- Keep ThreeGame <= 300 lines: put new behaviour in a system module, not in the orchestrator.
+
+## 2026-10-01 - P1.5 Combat parked
+- `services/features.ts` (`FEATURES.combat`, default false; `?combat=1` turns it on).
+  HUD/Controls take a `combat` prop. e2e asserts no combat UI and no pickups.
+
+## 2026-10-01 - P1.6 Place names
+- `services/world/Places.ts`: named junction (config `name`) > street within its pavement
+  + 6 m > rectangle districts > "West End". Shop hotspots removed (back in P4.6), so the pet
+  store and food are unreachable until then; energy is not used yet anyway.
+
+## 2026-10-01 - P1.7 Local save
+- `services/save/SaveGame.ts` (key `dca-save`, version 1, MIGRATIONS chain, corrupt saves
+  moved to `dca-save-corrupt`). App autosaves every 10 s, on hidden/pagehide and on leaving
+  PLAYING. Menu: Continue / New Game. Debug API gained `blocks()` and `save()`.
+- In co-op (Phase 5) blocks must come from the server, so restore only applies blocks when
+  `net.mode === 'solo'`.

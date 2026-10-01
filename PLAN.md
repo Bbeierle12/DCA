@@ -102,17 +102,17 @@ Exit: `npm run verify` green and fast enough for a loop (< 5 min). PROVEN 2026-1
   grid 2 m, storey 3 m; camera distances retuned; oversized props (bench, bin) to real size;
   spawn on a pavement near Oxford Circus. AC: unit test player height 1.75 +/- 0.05; e2e spawn
   zone is `clear_walk`.
-- [ ] P1.4 Split `ThreeGame.ts` into `Input`, `PlayerController` (pure), `CameraRig`,
+- [x] P1.4 (f961257; 1,427 -> 296 lines, 11 PlayerController tests) Split `ThreeGame.ts` into `Input`, `PlayerController` (pure), `CameraRig`,
   `BuildSystem`, `RemotePlayers`, `Pickups`, `SceneSetup`; React reads game state through a
   small store/event bridge instead of per-frame polling. AC: `ThreeGame.ts` <= 300 lines;
   `PlayerController` unit tests (acceleration, walk/run top speed within 1%, diagonal
   normalisation, wall sliding).
-- [ ] P1.5 Combat behind `FEATURES.combat = false`: no pickups, no attack buttons or combat
+- [x] P1.5 (625492e) Combat behind `FEATURES.combat = false`: no pickups, no attack buttons or combat
   HUD. AC: e2e asserts absence; combat unit tests still pass.
-- [ ] P1.6 Real place names: HUD zone comes from the nearest named intersection or road in
+- [x] P1.6 (68653e7) Real place names: HUD zone comes from the nearest named intersection or road in
   the world config; delete hard-coded zone rectangles and shop coordinates.
   AC: unit test (430, 260) -> "Oxford Circus"; e2e HUD name matches config.
-- [ ] P1.7 Local save v1: versioned save (position, money, energy, blocks, appearance) with
+- [x] P1.7 (cce7862) Local save v1: versioned save (position, money, energy, blocks, appearance) with
   migration and corrupt-save fallback; autosave every 10 s and on page hide.
   AC: e2e move + place block + reload -> restored; unit tests for migration and corruption.
 - [ ] P1.8 Performance pass: merge static world meshes by material per 100 m chunk, instance
