@@ -1,7 +1,7 @@
 """Player intent from the keyboard, unless a scenario has taken over (no human input in tests).
 
-Scenarios set `override` (Intent fields as a dict) and `camera_yaw` (radians); None means
-"read the real keyboard / the real camera".
+Scenarios set `override` (Intent fields as a dict) and `camera` ({"yaw", "pitch", "distance"},
+any subset); None means "read the real keyboard / mouse".
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import bge
 from dca.movement import Intent
 
 override: dict | None = None
-camera_yaw: float | None = None
+camera: dict | None = None
 
 
 def _down(inputs, key) -> bool:

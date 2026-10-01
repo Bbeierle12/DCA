@@ -29,7 +29,7 @@ def hold(ctx, seconds, **intent):
 
 def run(ctx):
     game_input.override = {}
-    game_input.camera_yaw = -math.pi / 2  # look east, along Oxford Street's pavement
+    game_input.camera = {"yaw": -math.pi / 2}  # look east, along Oxford Street's pavement
     yield from ctx.wait_frames(60)
     player = main.instance().player
     ctx.check("player exists", player is not None)

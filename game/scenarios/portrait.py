@@ -17,8 +17,9 @@ def aim(cam, eye, target):
 
 def run(ctx):
     game_input.override = {}
-    game_input.camera_yaw = -math.pi / 2
+    game_input.camera = {"yaw": -math.pi / 2}
     yield from ctx.wait_frames(30)
+    main.instance().camera_follow = False  # this scenario places the camera itself
     player = main.instance().player
     cam = ctx.scene.active_camera
     p = player.position

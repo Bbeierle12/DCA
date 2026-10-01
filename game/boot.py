@@ -25,6 +25,7 @@ def tick(cont):
     if not _state["started"]:
         _state["started"] = True
         args = parse_args(sys.argv)
+        _state["args"] = args
         if "scenario" in args:
             from game.harness import Harness
 
@@ -34,4 +35,4 @@ def tick(cont):
         harness.tick()  # first, so a scenario's input for this frame is in place
     from game import main
 
-    main.tick()
+    main.tick(_state.get("args"))
