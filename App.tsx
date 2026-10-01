@@ -6,6 +6,7 @@ import { ThreeGame } from './services/ThreeGame';
 import { GameConfig, GamePhase, GameState, FloatingTextData } from './types';
 import { COMBAT_CONFIG } from './constants';
 import { createDebugApi, installDebugApi } from './services/debug/DebugApi';
+import { isTypingTarget } from './services/game/Input';
 import MainMenu from './components/MainMenu';
 import CharacterCreator from './components/CharacterCreator';
 import HUD from './components/HUD';
@@ -294,11 +295,12 @@ export default function App() {
   useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
           if (phase !== 'PLAYING') return;
-          if (e.key === ' ' || e.key === 'Enter') {
+          if (e.repeat || isTypingTarget(e.target)) return;
+          if (e.code === 'Space' || e.code === 'Enter') {
               handleInteract();
           }
           // B key to toggle build
-          if (e.key.toLowerCase() === 'b') {
+          if (e.code === 'KeyB') {
               toggleBuild();
           }
       };
@@ -393,7 +395,7 @@ export default function App() {
 
                 {gameState.showMobileControls && (
                     <Controls 
-                        game={gameRef.current} 
+                        getGame={() => gameRef.current} 
                         onInteract={handleInteract} 
                         onBuild={toggleBuild} 
                         onZoom={(delta) => gameRef.current?.adjustZoom(delta)}

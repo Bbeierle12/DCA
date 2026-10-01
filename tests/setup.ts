@@ -108,3 +108,17 @@ HTMLCanvasElement.prototype.getContext = function getContext(type: string, ...ar
 };
 
 vi.stubGlobal('scrollTo', () => {});
+
+// jsdom has no PointerEvent; a MouseEvent subclass carries clientX/clientY plus pointer fields.
+if (typeof window.PointerEvent === 'undefined') {
+  class PointerEventPolyfill extends MouseEvent {
+    pointerId: number;
+    pointerType: string;
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 0;
+      this.pointerType = init.pointerType ?? 'mouse';
+    }
+  }
+  (window as unknown as { PointerEvent: unknown }).PointerEvent = PointerEventPolyfill;
+}

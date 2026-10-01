@@ -24,8 +24,17 @@ export interface DebugRenderInfo {
     meshes: number;
 }
 
+export interface DebugCameraState {
+    x: number;
+    y: number;
+    z: number;
+    theta: number;
+    phi: number;
+}
+
 export interface DebugApi {
     ready: boolean;
+    camera: () => DebugCameraState;
     frames: () => number;
     player: () => DebugPlayerState;
     renderInfo: () => DebugRenderInfo;
@@ -39,6 +48,7 @@ export interface DebugSource {
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
     getDebugPlayer(): DebugPlayerState;
+    getDebugCamera(): DebugCameraState;
     getZoneName(): string;
     teleportTo(x: number, z: number): void;
 }
@@ -66,6 +76,7 @@ export function createDebugApi(source: DebugSource, getMoney: () => number): Deb
         },
         frames: () => source.frameCount,
         player: () => source.getDebugPlayer(),
+        camera: () => source.getDebugCamera(),
         renderInfo: () => {
             const info = source.renderer.info;
             const counts = countSceneObjects(source.scene);

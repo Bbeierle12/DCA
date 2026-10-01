@@ -22,6 +22,7 @@ function fakeSource(): DebugSource & { teleported: [number, number] | null } {
     scene,
     teleported: null as [number, number] | null,
     getDebugPlayer: () => ({ x: 1, y: 0, z: 2, vx: 0, vz: 0, floor: 0, facing: 'down' }),
+    getDebugCamera: () => ({ x: 0, y: 5, z: 10, theta: 0.5, phi: 0.7 }),
     getZoneName: () => 'Oxford Circus',
     teleportTo(x: number, z: number) { this.teleported = [x, z]; },
   };
@@ -45,6 +46,7 @@ describe('DebugApi', () => {
       calls: 12, triangles: 345, programs: 2, lights: 1, textures: 3, geometries: 7, meshes: 1,
     });
     expect(api.player().z).toBe(2);
+    expect(api.camera().theta).toBe(0.5);
     expect(api.zone()).toBe('Oxford Circus');
     expect(api.money()).toBe(50);
     api.teleport(4, 5);

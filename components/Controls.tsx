@@ -1,9 +1,11 @@
 
 import React from 'react';
 import { ThreeGame } from '../services/ThreeGame';
+import Joystick from './Joystick';
 
 interface Props {
-    game: ThreeGame | null;
+    /** Read lazily so the controls work even if they rendered before the game existed. */
+    getGame: () => ThreeGame | null;
     onInteract: () => void;
     onBuild: () => void;
     onZoom: (amount: number) => void;
@@ -11,43 +13,22 @@ interface Props {
     onDropWeapon?: () => void;
 }
 
-export default function Controls({ game, onInteract, onBuild, onZoom, onAttack, onDropWeapon }: Props) {
-    const handleStart = (key: string) => {
-        if (game) game.setKey(key, true);
-    };
-
-    const handleEnd = (key: string) => {
-        if (game) game.setKey(key, false);
-    };
-
+export default function Controls({ getGame, onInteract, onBuild, onZoom, onAttack, onDropWeapon }: Props) {
     const handleAttack = (type: 'punch' | 'kick' | 'weapon') => {
         if (onAttack) {
             onAttack(type);
-        } else if (game) {
-            game.handleAttack(type);
+        } else {
+            getGame()?.handleAttack(type);
         }
     };
 
     const handleDrop = () => {
         if (onDropWeapon) {
             onDropWeapon();
-        } else if (game) {
-            game.handleDropWeapon();
+        } else {
+            getGame()?.handleDropWeapon();
         }
     };
-
-    const ArrowBtn = ({ dir, symbol }: { dir: string, symbol: string }) => (
-        <button
-            className="w-16 h-16 bg-white/20 border-2 border-white rounded-full text-white text-2xl flex items-center justify-center active:bg-white/40 select-none touch-none"
-            onMouseDown={() => handleStart(dir)}
-            onMouseUp={() => handleEnd(dir)}
-            onMouseLeave={() => handleEnd(dir)}
-            onTouchStart={(e) => { e.preventDefault(); handleStart(dir); }}
-            onTouchEnd={(e) => { e.preventDefault(); handleEnd(dir); }}
-        >
-            {symbol}
-        </button>
-    );
 
     const AttackBtn = ({ type, symbol, label, color }: { type: 'punch' | 'kick' | 'weapon', symbol: string, label: string, color: string }) => (
         <button
@@ -62,14 +43,9 @@ export default function Controls({ game, onInteract, onBuild, onZoom, onAttack, 
 
     return (
         <div className="absolute bottom-0 left-0 w-full p-6 flex justify-between items-end pointer-events-none font-vt323 z-20">
-            {/* Movement Controls - Left Side */}
-            <div className="flex flex-col gap-2 pointer-events-auto">
-                <div className="flex justify-center"><ArrowBtn dir="ArrowUp" symbol="▲" /></div>
-                <div className="flex gap-2">
-                    <ArrowBtn dir="ArrowLeft" symbol="◀" />
-                    <ArrowBtn dir="ArrowDown" symbol="▼" />
-                    <ArrowBtn dir="ArrowRight" symbol="▶" />
-                </div>
+            {/* Movement - Left Side */}
+            <div className="pointer-events-auto">
+                <Joystick onChange={(x, y) => getGame()?.setAnalogInput(x, y)} />
             </div>
 
             {/* Zoom Controls - Center */}

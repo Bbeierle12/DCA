@@ -7,10 +7,7 @@ import { createStickFigure, attachWeapon, StickFigureGroup } from './StickFigure
 import { createAnimatorState, updateAnimation, triggerAttack, triggerHitReact, getAttackHitFrame, AnimatorState } from './StickFigureAnimator';
 import { createCombatState, updateCombat, startAttack, isInHitWindow, checkHit, applyDamage, getAttackData, CombatState, equipWeapon, dropWeapon } from './CombatSystem';
 import { WorldBuilder } from './world/WorldBuilder';
-
-interface KeyState {
-    [key: string]: boolean;
-}
+import { Input } from './game/Input';
 
 export class ThreeGame {
     scene: THREE.Scene;
@@ -18,8 +15,8 @@ export class ThreeGame {
     renderer: THREE.WebGLRenderer;
     playerGroup: StickFigureGroup;
 
-    keys: KeyState = {};
-    analogInput: { x: number; y: number } = { x: 0, y: 0 };
+    input = new Input();
+    private touchLook: { id: number; x: number; y: number } | null = null;
     myUserId: string;
     net: NetClient;
     private lastNetSend = 0;
@@ -199,12 +196,18 @@ export class ThreeGame {
 
         // Bindings
         window.addEventListener('resize', this.onResize);
-        document.addEventListener('keydown', this.onKeyDown);
-        document.addEventListener('keyup', this.onKeyUp);
+        this.input.onAction(this.onAction);
+        this.input.attach(window);
+        const canvas = this.renderer.domElement;
+        canvas.style.touchAction = 'none';
         document.addEventListener('mousemove', this.onMouseMove);
-        document.addEventListener('mousedown', this.onMouseDown);
+        canvas.addEventListener('mousedown', this.onMouseDown);
         document.addEventListener('mouseup', this.onMouseUp);
-        window.addEventListener('wheel', this.onWheel, { passive: true });
+        canvas.addEventListener('wheel', this.onWheel, { passive: true });
+        canvas.addEventListener('pointerdown', this.onPointerDown);
+        canvas.addEventListener('pointermove', this.onPointerMove);
+        canvas.addEventListener('pointerup', this.onPointerUp);
+        canvas.addEventListener('pointercancel', this.onPointerUp);
         // Prevent context menu on right click drag
         container.addEventListener('contextmenu', (e) => e.preventDefault());
         
@@ -600,37 +603,17 @@ export class ThreeGame {
         }
 
         // Movement Logic - Time-based with acceleration
-        let targetSpeed = alwaysRun ? PLAYER_PHYSICS.RUN_SPEED : PLAYER_PHYSICS.WALK_SPEED;
+        const running = alwaysRun || this.input.running;
+        let targetSpeed = running ? PLAYER_PHYSICS.RUN_SPEED : PLAYER_PHYSICS.WALK_SPEED;
         if (this.combatState.isAttacking) {
             targetSpeed *= PLAYER_PHYSICS.ATTACK_SPEED_MULTIPLIER;
         }
 
-        // Get raw input (keyboard)
-        let inputX = 0;
-        let inputY = 0;
-        if (this.keys['w'] || this.keys['ArrowUp']) inputY = -1;
-        if (this.keys['s'] || this.keys['ArrowDown']) inputY = 1;
-        if (this.keys['a'] || this.keys['ArrowLeft']) inputX = -1;
-        if (this.keys['d'] || this.keys['ArrowRight']) inputX = 1;
-
-        // Optional: analog input (virtual stick)
-        const analogX = this.analogInput.x;
-        const analogY = this.analogInput.y;
-        const analogLength = Math.sqrt(analogX * analogX + analogY * analogY);
-
-        // Prefer analog input if present
-        if (analogLength > 0) {
-            inputX = analogX;
-            inputY = analogY;
-        }
-
-        // Normalize diagonal input to prevent speed boost (keep analog magnitude)
-        let inputLength = Math.sqrt(inputX * inputX + inputY * inputY);
-        if (inputLength > 1) {
-            inputX /= inputLength;
-            inputY /= inputLength;
-            inputLength = 1;
-        }
+        // Input: keyboard, on-screen buttons or joystick (already normalised)
+        const axis = this.input.moveAxis();
+        let inputX = axis.x;
+        let inputY = axis.y;
+        const inputLength = Math.hypot(inputX, inputY);
 
         // Optional: Camera-relative movement
         if (this.cameraRelativeMovement && inputLength > 0) {
@@ -767,7 +750,7 @@ export class ThreeGame {
         }
 
         // Update Animation
-        updateAnimation(this.playerGroup, this.animatorState, deltaTime, isMoving, alwaysRun);
+        updateAnimation(this.playerGroup, this.animatorState, deltaTime, isMoving, running);
 
         // Update Combat
         updateCombat(this.combatState, deltaTime, currentTime);
@@ -849,6 +832,11 @@ export class ThreeGame {
             floor: this.playerData.z,
             facing: this.playerData.facing,
         };
+    }
+
+    getDebugCamera() {
+        const p = this.camera.position;
+        return { x: p.x, y: p.y, z: p.z, theta: this.cameraState.theta, phi: this.cameraState.phi };
     }
 
     getZoneName(): string {
@@ -1100,7 +1088,7 @@ export class ThreeGame {
 
     private updateFreeCamera(deltaTime: number) {
         const speed = this.freeCameraSpeed * deltaTime;
-        const boosted = this.freeCameraShift ? speed * 3 : speed;
+        const boosted = this.input.running ? speed * 3 : speed;
 
         // Forward/back/strafe based on yaw (horizontal only)
         const forward = new THREE.Vector3(
@@ -1114,14 +1102,13 @@ export class ThreeGame {
             Math.sin(this.freeCameraYaw)
         );
 
-        if (this.keys['w'] || this.keys['W'] || this.keys['ArrowUp']) this.freeCameraPos.add(forward.clone().multiplyScalar(boosted));
-        if (this.keys['s'] || this.keys['S'] || this.keys['ArrowDown']) this.freeCameraPos.add(forward.clone().multiplyScalar(-boosted));
-        if (this.keys['a'] || this.keys['A'] || this.keys['ArrowLeft']) this.freeCameraPos.add(right.clone().multiplyScalar(-boosted));
-        if (this.keys['d'] || this.keys['D'] || this.keys['ArrowRight']) this.freeCameraPos.add(right.clone().multiplyScalar(boosted));
+        const axis = this.input.moveAxis();
+        this.freeCameraPos.add(forward.clone().multiplyScalar(-axis.y * boosted));
+        this.freeCameraPos.add(right.clone().multiplyScalar(axis.x * boosted));
 
         // Vertical movement
-        if (this.keys['e'] || this.keys['E'] || this.keys[' ']) this.freeCameraPos.y += boosted;
-        if (this.keys['q'] || this.keys['Q']) this.freeCameraPos.y -= boosted;
+        if (this.input.anyDown(['KeyE', 'Space'])) this.freeCameraPos.y += boosted;
+        if (this.input.isDown('KeyQ')) this.freeCameraPos.y -= boosted;
 
         // Clamp height
         this.freeCameraPos.y = Math.max(1, Math.min(1500, this.freeCameraPos.y));
@@ -1136,8 +1123,6 @@ export class ThreeGame {
         this.camera.lookAt(lookTarget);
     }
 
-    // Track shift separately since e.key for Shift doesn't pair well with other keys
-    private freeCameraShift = false;
 
     toggleFreeCamera() {
         this.freeCameraEnabled = !this.freeCameraEnabled;
@@ -1240,18 +1225,12 @@ export class ThreeGame {
         this.net.sendPlayerState({ ...newConfig });
     }
 
-    setKey(key: string, pressed: boolean) {
-        this.keys[key] = pressed;
+    setKey(code: string, pressed: boolean) {
+        this.input.setVirtual(code, pressed);
     }
 
     setAnalogInput(x: number, y: number) {
-        const length = Math.sqrt(x * x + y * y);
-        if (length > 1) {
-            x /= length;
-            y /= length;
-        }
-        this.analogInput.x = x;
-        this.analogInput.y = y;
+        this.input.setAnalog(x, y);
     }
 
     onResize = () => {
@@ -1273,11 +1252,7 @@ export class ThreeGame {
             this.freeCameraPitch += yMovement * sensitivity;
             this.freeCameraPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.freeCameraPitch));
         } else if (this.mouseState.isDown && this.mouseState.button === 2) {
-            const sensitivity = 0.005 * this.cameraSensitivity;
-            this.cameraState.theta -= e.movementX * sensitivity;
-            const yMovement = this.invertYCamera ? -e.movementY : e.movementY;
-            this.cameraState.phi -= yMovement * sensitivity;
-            this.cameraState.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraState.phi));
+            this.orbitCamera(e.movementX, e.movementY, 0.005);
         }
 
         // Build Cursor Raycast
@@ -1323,6 +1298,38 @@ export class ThreeGame {
         }
     }
 
+    /** Orbit the follow camera by a screen-space delta (pixels). */
+    orbitCamera(dx: number, dy: number, perPixel: number) {
+        const sensitivity = perPixel * this.cameraSensitivity;
+        this.cameraState.theta -= dx * sensitivity;
+        const yMovement = this.invertYCamera ? -dy : dy;
+        this.cameraState.phi -= yMovement * sensitivity;
+        this.cameraState.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraState.phi));
+    }
+
+    // One-finger drag on the canvas orbits the camera (the joystick lives outside the canvas).
+    onPointerDown = (e: PointerEvent) => {
+        if (e.pointerType !== 'touch' || this.touchLook) return;
+        this.touchLook = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    };
+
+    onPointerMove = (e: PointerEvent) => {
+        if (!this.touchLook || e.pointerId !== this.touchLook.id) return;
+        const dx = e.clientX - this.touchLook.x;
+        const dy = e.clientY - this.touchLook.y;
+        this.touchLook.x = e.clientX;
+        this.touchLook.y = e.clientY;
+        if (this.freeCameraEnabled) {
+            this.freeCameraYaw -= dx * 0.008 * this.cameraSensitivity;
+        } else {
+            this.orbitCamera(dx, dy, 0.008);
+        }
+    };
+
+    onPointerUp = (e: PointerEvent) => {
+        if (this.touchLook && this.touchLook.id === e.pointerId) this.touchLook = null;
+    };
+
     onMouseUp = () => {
         this.mouseState.isDown = false;
         this.mouseState.button = -1;
@@ -1342,48 +1349,35 @@ export class ThreeGame {
         }
     }
 
-    onKeyDown = (e: KeyboardEvent) => {
-        this.keys[e.key] = true;
-        if (e.key === 'Shift') this.freeCameraShift = true;
-
-        // Free camera toggle (backtick / tilde key)
-        if (e.key === '`' || e.key === '~' || e.key === 'F9') {
+    // Fresh key presses (by KeyboardEvent.code); held movement keys are read in update().
+    onAction = (code: string, e: KeyboardEvent) => {
+        if (code === 'Backquote' || code === 'F9') {
             e.preventDefault();
             this.toggleFreeCamera();
             return;
         }
-
-        // Skip game controls in free camera mode
         if (this.freeCameraEnabled) return;
-
-        // Attack controls
-        const key = e.key.toLowerCase();
-        if (key === 'j' || key === 'z') {
-            this.handleAttack('punch');
-        } else if (key === 'k' || key === 'x') {
-            this.handleAttack('kick');
-        } else if (key === 'l' || key === 'c') {
-            this.handleAttack('weapon');
-        } else if (key === 'q') {
-            this.handleDropWeapon();
-        }
-    };
-
-    onKeyUp = (e: KeyboardEvent) => {
-        this.keys[e.key] = false;
-        if (e.key === 'Shift') this.freeCameraShift = false;
+        if (code === 'KeyJ' || code === 'KeyZ') this.handleAttack('punch');
+        else if (code === 'KeyK' || code === 'KeyX') this.handleAttack('kick');
+        else if (code === 'KeyL' || code === 'KeyC') this.handleAttack('weapon');
+        else if (code === 'KeyQ') this.handleDropWeapon();
     };
 
     cleanup() {
         if (this.unsubPlayers) this.unsubPlayers();
         if (this.unsubHouses) this.unsubHouses();
         window.removeEventListener('resize', this.onResize);
+        this.input.detach();
+        const canvas = this.renderer.domElement;
         document.removeEventListener('mousemove', this.onMouseMove);
-        document.removeEventListener('mousedown', this.onMouseDown);
+        canvas.removeEventListener('mousedown', this.onMouseDown);
         document.removeEventListener('mouseup', this.onMouseUp);
-        window.removeEventListener('wheel', this.onWheel);
-        document.removeEventListener('keydown', this.onKeyDown);
-        document.removeEventListener('keyup', this.onKeyUp);
+        canvas.removeEventListener('wheel', this.onWheel);
+        canvas.removeEventListener('pointerdown', this.onPointerDown);
+        canvas.removeEventListener('pointermove', this.onPointerMove);
+        canvas.removeEventListener('pointerup', this.onPointerUp);
+        canvas.removeEventListener('pointercancel', this.onPointerUp);
         this.renderer.dispose();
+        canvas.remove();
     }
 }
