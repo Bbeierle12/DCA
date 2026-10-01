@@ -7,4 +7,6 @@ SCENARIOS: dict[str, str] = {
     "portrait": "game.scenarios.portrait",
     "camera_walk": "game.scenarios.camera_walk",
     "new_game": "game.scenarios.new_game",
+    "persist_write": "game.scenarios.persist_write",  # must run before persist_read
+    "persist_read": "game.scenarios.persist_read",
 }

@@ -154,7 +154,8 @@ def configure_engine(scene: bpy.types.Scene) -> None:
     gs.fps = 60
     gs.physics_step_sub = 1
     gs.vsync = "OFF"
-    gs.exit_key = "ESC"
+    # Esc is handled by the game (save, then quit); Pause/Break is the engine's hard exit.
+    gs.exit_key = "PAUSE"
 
 
 def copy_packages(out_dir: Path) -> None:

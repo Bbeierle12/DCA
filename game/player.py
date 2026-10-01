@@ -36,6 +36,13 @@ class PlayerController:
     def on_ground(self) -> bool:
         return bool(self.char.onGround)
 
+    def teleport(self, feet, yaw: float) -> None:
+        """Stand at `feet` (x, y, ground z) facing `yaw` (used when a save is loaded)."""
+        x, y, z = feet
+        self.obj.worldPosition = (x, y, z + body.HEIGHT / 2)
+        self.yaw = yaw
+        self.obj.worldOrientation = Euler((0.0, 0.0, yaw)).to_matrix()
+
     def play(self, name: str, rate: float) -> None:
         key = (name, round(rate, 2))
         if key == self.anim:

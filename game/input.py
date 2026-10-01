@@ -12,6 +12,7 @@ from dca.movement import Intent
 
 override: dict | None = None
 camera: dict | None = None
+quit: bool = False  # a scenario's stand-in for pressing Esc
 
 
 def _down(inputs, key) -> bool:
@@ -29,3 +30,10 @@ def read_intent() -> Intent:
     run = _down(keys, ev.LEFTSHIFTKEY) or _down(keys, ev.RIGHTSHIFTKEY)
     jump = _down(keys, ev.SPACEKEY)
     return Intent(forward=forward, right=right, run=run, jump=jump)
+
+
+def quit_requested() -> bool:
+    if quit:
+        return True
+    event = bge.logic.keyboard.inputs.get(bge.events.ESCKEY)
+    return bool(event and event.activated)
