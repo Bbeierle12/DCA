@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { TILE_SIZE, WORLD_SCALE, MAP_WIDTH, MAP_HEIGHT, COLORS, WEAPON_SPAWNS, COMBAT_CONFIG, PLAYER_PHYSICS, PLAYER_SCALE } from '../constants';
 import { GameConfig, HouseBlock, PlayerData } from '../types';
-import { updatePlayerInDb, subscribeToPlayers, subscribeToHouses, addHouseBlock, removeHouseBlock } from './firebase';
+import { NetClient } from './net/NetClient';
 import { createStickFigure, attachWeapon, StickFigureGroup } from './StickFigure';
 import { createAnimatorState, updateAnimation, triggerAttack, triggerHitReact, getAttackHitFrame, AnimatorState } from './StickFigureAnimator';
 import { createCombatState, updateCombat, startAttack, isInHitWindow, checkHit, applyDamage, getAttackData, CombatState, equipWeapon, dropWeapon } from './CombatSystem';
@@ -20,7 +20,9 @@ export class ThreeGame {
 
     keys: KeyState = {};
     analogInput: { x: number; y: number } = { x: 0, y: 0 };
-    myUserId: string | null = null;
+    myUserId: string;
+    net: NetClient;
+    private lastNetSend = 0;
     config: GameConfig;
 
     // Game State internal
@@ -116,7 +118,7 @@ export class ThreeGame {
 
     constructor(
         container: HTMLElement,
-        userId: string,
+        net: NetClient,
         config: GameConfig,
         onZoneChange: any,
         onInteract: any,
@@ -126,7 +128,8 @@ export class ThreeGame {
         onDeath?: () => void,
         onRespawn?: () => void
     ) {
-        this.myUserId = userId;
+        this.net = net;
+        this.myUserId = net.localId;
         this.config = config;
         this.onZoneChange = onZoneChange;
         this.onInteract = onInteract;
@@ -205,11 +208,11 @@ export class ThreeGame {
         // Prevent context menu on right click drag
         container.addEventListener('contextmenu', (e) => e.preventDefault());
         
-        // Start DB Listeners
-        if (userId) {
-            this.unsubPlayers = subscribeToPlayers(userId, (id, data) => this.updateOtherPlayer(id, data));
-            this.unsubHouses = subscribeToHouses((block) => this.addHouseBlockMesh(block), (id) => this.removeHouseBlockMesh(id));
-        }
+        // Network listeners (LocalNet in solo play)
+        this.unsubPlayers = net.onRemotePlayer((id, data) => this.updateOtherPlayer(id, data));
+        const unsubAdded = net.onBlockAdded((block) => this.addHouseBlockMesh(block));
+        const unsubRemoved = net.onBlockRemoved((id) => this.removeHouseBlockMesh(id));
+        this.unsubHouses = () => { unsubAdded(); unsubRemoved(); };
     }
 
     tagMesh(mesh: THREE.Object3D, label: string, type: string) {
@@ -470,17 +473,6 @@ export class ThreeGame {
     addHouseBlockMesh(data: HouseBlock) {
         if (this.blockMeshes[data.id!]) return;
         
-        // Prevent duplicates if we did optimistic update
-        const existing = this.houseBlocks.find(b => b.x === data.x && b.y === data.y && b.z === data.z);
-        if (existing) {
-            // If existing is temp/offline and this is real, replace it
-            if (existing.id?.startsWith('temp_') || existing.id?.startsWith('offline_')) {
-                this.removeHouseBlockMesh(existing.id);
-            } else {
-                // Already have a real block here
-                return;
-            }
-        }
 
         this.houseBlocks.push(data);
         
@@ -794,8 +786,10 @@ export class ThreeGame {
         }
 
         // Sync position and combat state
-        if (this.myUserId && Math.random() > 0.9) { // Throttled sync
-            updatePlayerInDb(this.myUserId, {
+        // Publish state at most 10 times per second (frame-rate independent)
+        if (currentTime - this.lastNetSend >= 0.1) {
+            this.lastNetSend = currentTime;
+            this.net.sendPlayerState({
                 x: Math.round(this.playerData.x),
                 y: Math.round(this.playerData.y),
                 z: this.playerData.z,
@@ -1214,8 +1208,8 @@ export class ThreeGame {
          const existingObject = blocksAtLoc.find(b => b.type !== 'floor');
 
          if (buildItem === 'delete') {
-             if (existingObject) removeHouseBlock(existingObject.id!);
-             else if (existingFloor) removeHouseBlock(existingFloor.id!);
+             if (existingObject) this.net.sendBlockRemove(existingObject.id!);
+             else if (existingFloor) this.net.sendBlockRemove(existingFloor.id!);
              else this.onInteract('error', 0, "Nothing here!");
          } else {
              const isFloor = buildItem === 'floor';
@@ -1224,14 +1218,7 @@ export class ThreeGame {
              if (canBuild) {
                  if (money >= 10) {
                      this.onInteract('build', 10, '-10💰');
-                     const block = { x, y, z: buildLevel, type: buildItem, builder: this.myUserId || 'anon' };
-                     
-                     addHouseBlock(block);
-                     
-                     // Optimistic / Offline Update
-                     if (!this.myUserId || this.myUserId.startsWith('offline_')) {
-                         this.addHouseBlockMesh({ ...block, id: `offline_${Date.now()}_${Math.random()}` });
-                     }
+                     this.net.sendBlockAdd({ x, y, z: buildLevel, type: buildItem, builder: this.myUserId });
                  } else {
                      this.onInteract('error', 0, "Need 10💰!");
                  }
@@ -1250,7 +1237,7 @@ export class ThreeGame {
             attachWeapon(this.playerGroup, this.combatState.weapon);
         }
         this.scene.add(this.playerGroup);
-        if (this.myUserId) updatePlayerInDb(this.myUserId, newConfig as any);
+        this.net.sendPlayerState({ ...newConfig });
     }
 
     setKey(key: string, pressed: boolean) {

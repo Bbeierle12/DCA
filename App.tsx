@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { initAuth, updatePlayerInDb } from './services/firebase';
+import { LocalNet } from './services/net/LocalNet';
+import { NetClient } from './services/net/NetClient';
 import { ThreeGame } from './services/ThreeGame';
 import { GameConfig, GamePhase, GameState, FloatingTextData } from './types';
 import { COMBAT_CONFIG } from './constants';
@@ -67,7 +68,9 @@ interface HoverInfo {
 
 export default function App() {
   const [phase, setPhase] = useState<GamePhase>('MENU');
-  const [userId, setUserId] = useState<string | null>(null);
+  const netRef = useRef<NetClient | null>(null);
+  if (!netRef.current) netRef.current = new LocalNet();
+  const net = netRef.current;
   const [config, setConfig] = useState<GameConfig>(DEFAULT_CONFIG);
   
   // Game State - merge saved settings with defaults
@@ -134,10 +137,6 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const loopRef = useRef<number>(0);
 
-  // Init Auth
-  useEffect(() => {
-    initAuth().then(uid => setUserId(uid));
-  }, []);
 
   const addFloatingText = (text: string, color: string = 'text-yellow-300') => {
       const id = Date.now();
@@ -147,10 +146,10 @@ export default function App() {
 
   // Start Game Loop when Phase changes to PLAYING
   useEffect(() => {
-    if (phase === 'PLAYING' && containerRef.current && userId) {
+    if (phase === 'PLAYING' && containerRef.current) {
         const game = new ThreeGame(
             containerRef.current,
-            userId,
+            net,
             config,
             // onZoneChange
             (zone: string, level: number) => {
@@ -251,7 +250,7 @@ export default function App() {
             gameRef.current = null;
         };
     }
-  }, [phase, userId]);
+  }, [phase, net]);
 
   // Sync config changes to game
   useEffect(() => {
@@ -345,7 +344,7 @@ export default function App() {
         {phase === 'MENU' && (
             <MainMenu 
                 onStart={() => setPhase('CREATOR')} 
-                isReady={!!userId} 
+                isReady={true} 
             />
         )}
 
@@ -365,8 +364,8 @@ export default function App() {
                      <button onClick={() => setShowSettings(true)} className="bg-black/50 text-white p-3 rounded-full border-2 border-white text-2xl hover:bg-black/70 transition">⚙️</button>
                 </div>
 
-                <div className="absolute top-4 right-4 z-10 text-green-400 font-vt323 text-xl shadow-black drop-shadow-md">
-                    Online
+                <div data-testid="net-badge" className={`absolute top-4 right-4 z-10 font-vt323 text-xl shadow-black drop-shadow-md ${net.mode === 'online' ? 'text-green-400' : 'text-gray-200'}`}>
+                    {net.mode === 'online' ? 'Online' : 'Solo'}
                 </div>
 
                 <HUD state={gameState} />

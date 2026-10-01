@@ -18,6 +18,7 @@ test('starts the game and renders frames', async ({ page }) => {
   expect(Number.isFinite(p.x) && Number.isFinite(p.z)).toBe(true);
   expect(typeof (await page.evaluate(() => window.__dca!.zone()))).toBe('string');
   expect(await page.evaluate(() => window.__dca!.money())).toBeGreaterThanOrEqual(0);
+  await expect(page.getByTestId('net-badge')).toHaveText('Solo');
   errs.assertClean();
 });
 

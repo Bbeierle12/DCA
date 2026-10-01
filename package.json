@@ -17,7 +17,6 @@
     "verify": "npm run typecheck && npm test && npm run build && npm run size && npm run e2e"
   },
   "dependencies": {
-    "firebase": "^12.6.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.181.2"
