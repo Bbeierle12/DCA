@@ -13,7 +13,8 @@ SPOT_SECONDS = 10.0
 CAMERA_HEIGHT = 2.5  # third-person eye height over the ground, metres
 PITCH = math.radians(83)  # Blender camera: 0 looks straight down, 90 deg looks level
 
-# Busy places on the map (prototype x, z). The spawn is added at run time from dca.world.
+# Busy places on the map (prototype x, z). Measured from the nearest pavement, where a player
+# would stand (the junction centres are carriageway or a monument on a roundabout island).
 LANDMARKS = {
     "oxford_circus": (430.0, 260.0),
     "piccadilly_circus": (430.0, 390.0),
@@ -21,10 +22,14 @@ LANDMARKS = {
 }
 
 
-def key_spots(spawn_xy: tuple[float, float]) -> list[tuple[str, float, float]]:
-    """Measurement spots in Blender x, y: the spawn pavement plus the landmarks."""
-    spots = [("spawn", float(spawn_xy[0]), float(spawn_xy[1]))]
-    spots += [(name, *from_prototype(*xz)) for name, xz in LANDMARKS.items()]
+def key_spots(world) -> list[tuple[str, float, float]]:
+    """Measurement spots in Blender x, y: the spawn pavement plus pavements at the landmarks.
+
+    `world` is a `dca.world.World` (anything with `spawn_point()` and `pavement_near(x, y)`).
+    """
+    spots = [("spawn", *map(float, world.spawn_point()))]
+    for name, xz in LANDMARKS.items():
+        spots.append((name, *map(float, world.pavement_near(*from_prototype(*xz)))))
     return spots
 
 

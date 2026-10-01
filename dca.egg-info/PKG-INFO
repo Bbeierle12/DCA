@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: dca
-Version: 0.1.0
-Summary: DCA: a walk-in London city game built in Blender and run with UPBGE
-Requires-Python: <3.12,>=3.11
-Provides-Extra: dev
-Requires-Dist: pytest>=8; extra == "dev"
-Requires-Dist: ruff>=0.6; extra == "dev"
-Requires-Dist: bpy==5.0.1; extra == "dev"

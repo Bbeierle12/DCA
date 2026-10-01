@@ -42,3 +42,4 @@ build/
 .upbge/
 *.blend1
 .vite/
+*.egg-info/

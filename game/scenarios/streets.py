@@ -1,7 +1,8 @@
 """B5: the London streets load, are solid underfoot, and hold goal 3 at the key spots.
 
-At each spot the camera stands 2.5 m over the ground and turns a full circle over 10 s while
-frame times are recorded.
+At each spot (the spawn and the pavements nearest Oxford Circus, Piccadilly Circus and Trafalgar
+Square) the camera stands 2.5 m over the ground and turns a full circle over 10 s while frame
+times are recorded.
 """
 
 from collections import Counter
@@ -32,7 +33,7 @@ def run(ctx):
 
     cam = scene.active_camera
     probe = scene.objects["Game"]
-    for label, x, y in perf.key_spots(spawn):
+    for label, x, y in perf.key_spots(world):
         hit, point, _ = probe.rayCast((x, y, -5.0), (x, y, 3.0))
         ctx.check(f"{label}: solid ground", hit is not None and kind_of(hit) in ("surface", "ground"),
                   kind_of(hit) if hit is not None else None)

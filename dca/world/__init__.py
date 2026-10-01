@@ -29,10 +29,13 @@ class World:
     def place_at(self, x: float, y: float) -> str:
         return self._namer.at(*to_prototype(x, y))
 
-    def spawn_point(self) -> tuple[float, float]:
-        """A pavement (clear walk) cell near the prototype's spawn target, in Blender x, y."""
-        mx, mz = self.london.spawn_target
-        found = find_nearest_zone_point(self.zones, mx, mz, CLEAR_WALK)
+    def pavement_near(self, x: float, y: float) -> tuple[float, float]:
+        """The nearest pavement (clear walk) spot to Blender (x, y), within 80 m."""
+        found = find_nearest_zone_point(self.zones, *to_prototype(x, y), CLEAR_WALK)
         if found is None:
-            raise RuntimeError("no pavement near the spawn target")
+            raise RuntimeError(f"no pavement within 80 m of ({x:.0f}, {y:.0f})")
         return from_prototype(*found)
+
+    def spawn_point(self) -> tuple[float, float]:
+        """A pavement cell near the prototype's spawn target, in Blender x, y."""
+        return self.pavement_near(*from_prototype(*self.london.spawn_target))
