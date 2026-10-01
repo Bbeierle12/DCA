@@ -113,3 +113,21 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
   scene-building code can be tested in the cloud sandbox. GitHub release downloads are blocked
   by the sandbox egress policy (403), so UPBGE itself only runs on Brandon's PC.
 - The web prototype stays as the source of street data/geometry (D9).
+
+## 2026-10-01 - Phase A (A1-A5)
+- A1: UPBGE 0.50 Windows .7z downloaded on Brandon's PC (via his network; the sandbox's GitHub
+  release downloads are blocked) and unpacked with Windows' bsdtar into `.upbge/`. Pinned in
+  `tools/upbge.json` with SHA-256. blenderplayer passes args after `-` to sys.argv.
+- A2: prototype moved to `web/`; its verify still passes there.
+- A3: Python 3.11 project; `.venv` with bpy 5.0.1 in the sandbox and on the PC (uv;
+  `uv python install` printed a link error but the interpreter works).
+- A4: harness + boot + smoke scenario + `scripts/upbge_run.py`. Two UPBGE 0.50 gotchas:
+  `wm.read_factory_settings` inside a UPBGE script crashes (logic-node add-on re-register), and
+  every logic-brick operator crashes in background mode. Fix: clear the scene by hand, and
+  append the Game driver empty from `tools/templates/game_driver.blend` (made once with the UI).
+- Smoke on Brandon's PC (Ryzen 3 4300U, Radeon integrated, ground + sun only, uncapped):
+  1920x1080 avg 65.0 / 1%-low 16.1 fps; 1600x900 79.7 / 22.8; 1280x720 111.7 / 35.7.
+  First-ever run spent 23 s compiling shaders; later runs warm up in ~5 s. Raised D10.
+- A5: CLAUDE.md, README and loop runners rewritten for the UPBGE stack.
+- Moving code to the PC: commits travel as git bundles (`dca-<hash>.bundle` in
+  `C:\Users\Bbeie\repos`), pulled into `C:\Users\Bbeie\repos\DCA` and pushed from there.

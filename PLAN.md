@@ -61,6 +61,13 @@ Brandon then runs check 7 and sets `STATUS: COMPLETE`.
   2026-01-06, built on Blender 5.0.1). Pinned; upgrading is a decision, not a task.
 - **D8 Platform.** DECIDED 2026-10-01: Brandon's Windows PC, keyboard and mouse. Phones are not
   a target.
+- **D10 Goal 3 resolution vs. Brandon's hardware.** OPEN (raised 2026-10-01 by A4).
+  The PC is a Ryzen 3 4300U with integrated Radeon graphics. An almost empty scene (ground +
+  sun, default EEVEE settings) measures avg 65 / 1%-low 16 fps at 1920x1080, 80 / 23 at
+  1600x900 and 112 / 36 at 1280x720. The full city at 1080p will not reach 60 fps on defaults.
+  Proposal: B5 first tunes EEVEE (shadows, AO, reflections, bloom off or reduced); if 1080p
+  still misses, change goal 3 to 1280x720 at >= 60 fps avg / >= 45 1%-low (or 1080p at 30).
+  Needs Brandon's call before Phase B's exit is judged.
 - **D9 The three.js prototype** (Phases 0-1 of plan v1, `web/` after A2) is retired as a game.
   It stays only as the source of the London street data and geometry until a Python
   generator replaces it (backlog).
@@ -88,21 +95,21 @@ The v1 log entries stay in `LOG.md` as history.
 
 ## Phase A - Toolchain
 
-- [ ] A1 Install UPBGE 0.50 portable on Brandon's PC under `.upbge/` in the repo (gitignored);
+- [x] A1 (de159b1; probe printed Blender 5.0.1, Python 3.11.13) Install UPBGE 0.50 portable on Brandon's PC under `.upbge/` in the repo (gitignored);
   record path and version in `tools/upbge.json`. AC: `upbge -b --python-expr` prints the
   UPBGE version from a scripted check.
-- [ ] A2 Repo layout: move the three.js prototype to `web/` (its own `npm run verify` still
+- [x] A2 (de159b1; web verify green from web/) Repo layout: move the three.js prototype to `web/` (its own `npm run verify` still
   passes there); add `dca/` (pure Python package), `game/` (UPBGE components), `tools/`
   (bpy build scripts), `data/` (exported map data), `tests/` (pytest). AC: tree matches;
   web verify green from `web/`.
-- [ ] A3 Python project: `pyproject.toml` (Python 3.11, pytest, ruff, `bpy==5.0.1` as a test
+- [x] A3 (106e61e) Python project: `pyproject.toml` (Python 3.11, pytest, ruff, `bpy==5.0.1` as a test
   dependency), `scripts/verify.py` running ruff + pytest. AC: verify green in the sandbox.
-- [ ] A4 UPBGE scenario harness: `game/harness.py` component reads a scenario name from the
+- [x] A4 (00cf95b; smoke PASS on Brandon's PC: 65 fps avg at 1080p, empty scene) UPBGE scenario harness: `game/harness.py` component reads a scenario name from the
   command line, drives inputs, samples state and frame times each frame, writes
   `build/results/<scenario>.json`, then ends the game. `scripts/verify.py --upbge` builds the
   .blend in UPBGE headless and runs every scenario with the standalone player. AC: a smoke
   scenario (load, 120 frames, report fps) passes on Brandon's PC.
-- [ ] A5 Loop files for the new stack (LOOP.md, CLAUDE.md, `scripts/loop.ps1`).
+- [x] A5 Loop files for the new stack (LOOP.md, CLAUDE.md, `scripts/loop.ps1`).
 
 Exit: `python scripts/verify.py` green in the sandbox and `--upbge` green on Brandon's PC.
 

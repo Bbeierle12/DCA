@@ -1,20 +1,22 @@
 # DCA
 
-A one-or-two-player web game set on a living West End street map: earn money, buy plots and
-buildings, build and furnish them with a Blender-made kit, and walk into any building.
-
-Built with React, three.js, Vite and TypeScript, with a Rust co-op server planned.
+A one-or-two-player game built in Blender and run with UPBGE: a living West End street map
+where you earn money, buy plots and buildings, build and furnish them with a Blender-made kit,
+and walk into any building.
 
 ## Run
 
-```bash
-npm install
-npm run dev        # http://localhost:3000
-npm run verify     # typecheck, unit tests, build, end-to-end tests
+```powershell
+uv venv --python 3.11 .venv
+uv pip install -e ".[dev]"
+python scripts/verify.py            # lint + tests (logic, data, bpy build)
+python scripts/upbge_run.py all     # build in UPBGE and run the scenarios (needs .upbge/)
 ```
+
+UPBGE 0.50 goes in `.upbge/` (see `tools/upbge.json`).
 
 ## How work happens
 
-Development runs as a loop: `PLAN.md` holds the completion goal and the task list,
-`LOOP.md` is the per-iteration protocol, `LOG.md` records each iteration.
-`scripts/loop.sh` (or `scripts/loop.ps1` on Windows) runs Claude Code headless through it.
+Development runs as a loop: `PLAN.md` holds the completion goal and the task list, `LOOP.md`
+is the per-iteration protocol, `LOG.md` records each iteration. `scripts/loop.ps1` runs Claude
+Code headless through it on Windows. The original three.js prototype lives in `web/`.
