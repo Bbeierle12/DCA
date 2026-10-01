@@ -69,23 +69,23 @@ bundle 1,296 KB / 339 KB gzip; player ~3.9 m tall; on-screen controls dead until
 
 ## Phase 0 - Loop infrastructure
 
-- [ ] P0.1 Repo hygiene: ignore and untrack `coverage/`, `test-results/`, `playwright-report/`;
+- [x] P0.1 (e7de46a) Repo hygiene: ignore and untrack `coverage/`, `test-results/`, `playwright-report/`;
   remove AI Studio leftovers (Gemini key `define` in `vite.config.ts`, `metadata.json`,
   README boilerplate); fix the type error in `tests/setup.ts`; add `typecheck` script.
   AC: `npx tsc --noEmit` exits 0; `git ls-files coverage` empty.
-- [ ] P0.2 Debug API `window.__dca` (always available, read-mostly): `player()` (position,
+- [x] P0.2 (9f36841) Debug API `window.__dca` (always available, read-mostly): `player()` (position,
   velocity, floor), `renderInfo()` (calls, triangles, programs, lights, textures), `zone()`,
   `teleport(x, z)`, `money()`, `ready` flag. AC: e2e reads every field.
-- [ ] P0.3 E2E harness: Playwright uses `PW_CHROMIUM_PATH` when set and software-GL flags;
+- [x] P0.3 (142cfb9) E2E harness: Playwright uses `PW_CHROMIUM_PATH` when set and software-GL flags;
   helpers `startGame(page)`, `holdKey`, `waitForReady`; console/page-error collector that
   fails the test. Smoke tests: menu, start game, canvas renders, keyboard moves the player.
   AC: `npm run e2e` green.
-- [ ] P0.4 `npm run verify` = typecheck + unit (coverage thresholds under
+- [x] P0.4 (29e38fc; verify 95 s, threshold failure confirmed) `npm run verify` = typecheck + unit (coverage thresholds under
   `coverage.thresholds`, set to the current baseline) + build + e2e. Bundle-size check script
   prints gzip size. AC: verify green; a deliberately failing threshold fails it (checked once).
-- [ ] P0.5 Record baseline metrics with the new tools in `LOG.md` (draw calls at spawn etc.).
+- [x] P0.5 (f0306ec; Oxford Circus 2,968 draw calls) Record baseline metrics with the new tools in `LOG.md` (draw calls at spawn etc.).
 
-Exit: `npm run verify` green and fast enough for a loop (< 5 min).
+Exit: `npm run verify` green and fast enough for a loop (< 5 min). PROVEN 2026-10-01 (95 s).
 
 ## Phase 1 - Stabilise the client
 
