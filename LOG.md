@@ -143,3 +143,19 @@ Wrote PLAN.md, LOOP.md, CLAUDE.md and the loop runners. Baseline metrics are in 
 Brandon chose 1280x720 at >= 60 fps avg / >= 45 1%-low for goal 3. Completion goal 3 and D10
 updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
 `scripts/upbge_run.py` opens the player window at 1280x720. verify OK (13 tests).
+
+## 2026-10-01 - B1 map data export
+
+- `web/scripts/export_map.ts` (`npm run export:map`, runs with vite-node) writes
+  `data/london.json` (roads with lane layouts and kerbsides, 8 junctions of which 5 named,
+  11 districts, spawn target, colours, counts), `data/zones.json` (400 x 400 cells of 2 m, one
+  digit per cell, legend in the file) and `data/probes.json` (zone + place name at 2214 points,
+  9 spawn searches) as golden answers for the Python port.
+- `dca/world/data.py`: `load_london()`, `load_zones()`, `ZoneGrid.zone_at(x, z)` in map
+  (prototype) coordinates; `DCA_DATA` overrides the folder. Build copies the two runtime files
+  to `build/data/`.
+- Found: the prototype's districts leave x 530-650, z 480-520 uncovered (its "West End"
+  fallback); test documents it. Curb cells are rare (103) because curbs are 0.4 m wide and the
+  grid samples cell centres; crosswalk is never painted.
+- verify OK (21 tests). web verify green (170 unit, 15 e2e, 232 KB gzip); in the sandbox e2e
+  needs `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.

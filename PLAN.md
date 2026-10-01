@@ -113,7 +113,7 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
 
 ## Phase B - London in Blender
 
-- [ ] B1 Export map data from the prototype: `data/london.json` (roads, junctions with names,
+- [x] B1 (3d240fb; 18 roads, 8 junctions, 11 districts, 400x400 zones; 2214/2214 zone probes match) Export map data from the prototype: `data/london.json` (roads, junctions with names,
   districts) and `data/zones.json` (2 m zone grid). AC: Python loader test round-trips counts.
 - [ ] B2 Export the generated street geometry as `data/london_streets.glb` (batched, vertex
   colours, shared textures) using headless Chromium. AC: file <= 15 MB; loads in bpy.
