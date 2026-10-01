@@ -26,7 +26,8 @@ class ScenarioContext:
         self.frame = 0
         self.checks: list[dict] = []
         self.metrics: dict = {}
-        self.frame_times: list[float] = []
+        self.frame_times: list[float] = []  # only while measuring
+        self.measuring = False
 
     @property
     def scene(self):
@@ -40,6 +41,15 @@ class ScenarioContext:
         end = time.perf_counter() + seconds
         while time.perf_counter() < end:
             yield
+
+    def measure(self, frames: int | None = None, seconds: float | None = None):
+        """Records frame times for a window (warm-up frames before it are excluded)."""
+        self.measuring = True
+        if frames is not None:
+            yield from self.wait_frames(frames)
+        if seconds is not None:
+            yield from self.wait_seconds(seconds)
+        self.measuring = False
 
     def check(self, label: str, ok: bool, detail=None):
         self.checks.append({"label": label, "ok": bool(ok), "detail": detail})
@@ -56,6 +66,7 @@ class Harness:
         self.last = None
         self.done = False
         self.error = None
+        self.warmup = 0.0  # first 10 frames: shader compilation and loading
         module = SCENARIOS.get(name)
         if module is None:
             self.error = f"unknown scenario {name!r}"
@@ -68,7 +79,11 @@ class Harness:
             return
         now = time.perf_counter()
         if self.last is not None:
-            self.ctx.frame_times.append(now - self.last)
+            dt = now - self.last
+            if self.ctx.measuring:
+                self.ctx.frame_times.append(dt)
+            if self.ctx.frame <= 10:
+                self.warmup += dt
         self.last = now
         self.ctx.frame += 1
         if self.gen is None:
@@ -95,6 +110,7 @@ class Harness:
             "checks": ctx.checks,
             "metrics": ctx.metrics,
             "frames": frame_stats(ctx.frame_times).as_dict(),
+            "warmup_seconds": round(self.warmup, 2),
             "seconds": round(time.perf_counter() - self.started, 2),
         }
         os.makedirs(self.results_dir, exist_ok=True)

@@ -65,7 +65,8 @@ def scenario(name: str) -> bool:
     frames = result["frames"]
     status = "PASS" if result["passed"] else "FAIL"
     print(f"[{status}] {name}: {frames['frames']} frames, avg {frames['avg_fps']} fps, "
-          f"1%-low {frames['low1_fps']} fps, worst {frames['worst_ms']} ms")
+          f"1%-low {frames['low1_fps']} fps, worst {frames['worst_ms']} ms, "
+          f"warm-up {result.get('warmup_seconds')} s")
     for check in result["checks"]:
         detail = f" ({check['detail']})" if check["detail"] else ""
         print(f"    {'ok ' if check['ok'] else 'BAD'} {check['label']}{detail}")
