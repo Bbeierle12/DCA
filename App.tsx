@@ -8,6 +8,7 @@ import { COMBAT_CONFIG } from './constants';
 import { createDebugApi, installDebugApi } from './services/debug/DebugApi';
 import { isTypingTarget } from './services/game/Input';
 import { GameStore } from './services/game/GameStore';
+import { FEATURES } from './services/features';
 import MainMenu from './components/MainMenu';
 import CharacterCreator from './components/CharacterCreator';
 import HUD from './components/HUD';
@@ -315,7 +316,7 @@ export default function App() {
                     {net.mode === 'online' ? 'Online' : 'Solo'}
                 </div>
 
-                <HUD state={hudState} />
+                <HUD state={hudState} combat={FEATURES.combat} />
 
                 {/* Hover Toast */}
                 {gameState.isBuilding && activeHover && gameState.showTooltips && (
@@ -341,6 +342,7 @@ export default function App() {
                 {gameState.showMobileControls && (
                     <Controls 
                         getGame={() => gameRef.current} 
+                        combat={FEATURES.combat}
                         onInteract={handleInteract} 
                         onBuild={toggleBuild} 
                         onZoom={(delta) => gameRef.current?.adjustZoom(delta)}

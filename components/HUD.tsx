@@ -1,7 +1,7 @@
 import React from 'react';
 import { GameState } from '../types';
 
-export default function HUD({ state }: { state: GameState }) {
+export default function HUD({ state, combat = true }: { state: GameState; combat?: boolean }) {
     const healthPercent = (state.health / state.maxHealth) * 100;
     const healthColor = healthPercent > 60 ? 'bg-green-500' :
                         healthPercent > 30 ? 'bg-yellow-500' : 'bg-red-500';
@@ -9,7 +9,7 @@ export default function HUD({ state }: { state: GameState }) {
     return (
         <div className="absolute top-20 left-4 flex flex-col gap-2 pointer-events-none font-vt323 z-10">
             {/* Health Bar */}
-            <div className="bg-black/70 px-4 py-2 rounded-lg border-2 border-white w-48">
+            {combat && <div className="bg-black/70 px-4 py-2 rounded-lg border-2 border-white w-48">
                 <div className="flex items-center gap-2 text-white text-xl mb-1">
                     <span>❤️</span>
                     <span>{state.health} / {state.maxHealth}</span>
@@ -20,10 +20,10 @@ export default function HUD({ state }: { state: GameState }) {
                         style={{ width: `${healthPercent}%` }}
                     />
                 </div>
-            </div>
+            </div>}
 
             {/* Weapon Indicator */}
-            {state.weapon && (
+            {combat && state.weapon && (
                 <div className="bg-orange-900/70 text-orange-300 px-4 py-1 rounded-full border-2 border-orange-400 text-2xl flex items-center gap-2 w-max">
                     <span>⚔️</span>
                     <span>{state.weapon.charAt(0).toUpperCase() + state.weapon.slice(1)}</span>
@@ -32,7 +32,7 @@ export default function HUD({ state }: { state: GameState }) {
             )}
 
             {/* Death Overlay */}
-            {state.isDead && (
+            {combat && state.isDead && (
                 <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 pointer-events-none">
                     <div className="text-center">
                         <div className="text-6xl text-red-500 font-bold mb-4">YOU DIED</div>
@@ -47,7 +47,7 @@ export default function HUD({ state }: { state: GameState }) {
             <div className="bg-black/70 text-white px-4 py-1 rounded-full border-2 border-white text-2xl flex items-center gap-2 w-max">
                 <span>⚡</span> <span>{state.energy}</span>
             </div>
-            {state.zone === 'Home Lot' && (
+            {state.level > 0 && (
                  <div className="bg-purple-900/70 text-yellow-300 px-4 py-1 rounded-full border-2 border-white text-2xl flex items-center gap-2 w-max">
                     <span>👣</span> <span>{state.level === 0 ? "Ground" : "2nd Floor"}</span>
                 </div>
@@ -57,12 +57,12 @@ export default function HUD({ state }: { state: GameState }) {
             </div>
 
             {/* Combat Controls Help */}
-            <div className="bg-gray-900/70 text-gray-300 px-3 py-2 rounded-lg border border-gray-500 text-lg mt-2">
+            {combat && <div className="bg-gray-900/70 text-gray-300 px-3 py-2 rounded-lg border border-gray-500 text-lg mt-2">
                 <div className="text-white font-bold mb-1">Combat:</div>
                 <div>J/Z - Punch</div>
                 <div>K/X - Kick</div>
                 <div>L/C - Weapon</div>
-            </div>
+            </div>}
         </div>
     );
 }

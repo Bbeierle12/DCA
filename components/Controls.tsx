@@ -11,9 +11,11 @@ interface Props {
     onZoom: (amount: number) => void;
     onAttack?: (type: 'punch' | 'kick' | 'weapon') => void;
     onDropWeapon?: () => void;
+    /** Show attack and drop-weapon buttons (combat feature flag). */
+    combat?: boolean;
 }
 
-export default function Controls({ getGame, onInteract, onBuild, onZoom, onAttack, onDropWeapon }: Props) {
+export default function Controls({ getGame, onInteract, onBuild, onZoom, onAttack, onDropWeapon, combat = true }: Props) {
     const handleAttack = (type: 'punch' | 'kick' | 'weapon') => {
         if (onAttack) {
             onAttack(type);
@@ -57,19 +59,19 @@ export default function Controls({ getGame, onInteract, onBuild, onZoom, onAttac
             {/* Attack Controls - Right Side Bottom */}
             <div className="flex flex-col gap-3 pointer-events-auto">
                 {/* Attack Buttons Row */}
-                <div className="flex gap-2">
+                {combat && <div className="flex gap-2" data-testid="attack-buttons">
                     <AttackBtn type="punch" symbol="👊" label="Punch" color="bg-red-600/70" />
                     <AttackBtn type="kick" symbol="🦶" label="Kick" color="bg-orange-600/70" />
                     <AttackBtn type="weapon" symbol="⚔️" label="Weapon" color="bg-purple-600/70" />
-                </div>
+                </div>}
 
                 {/* Drop Weapon Button */}
-                <button
+                {combat && <button
                     onClick={handleDrop}
                     className="bg-gray-600/70 border-2 border-gray-400 rounded-lg text-white px-4 py-2 text-lg active:bg-gray-500/70 select-none flex items-center justify-center gap-2"
                 >
                     <span>🔽</span> Drop Weapon
-                </button>
+                </button>}
 
                 {/* Action Buttons Row */}
                 <div className="flex gap-2">

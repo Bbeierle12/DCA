@@ -8,6 +8,7 @@ import { ZoneMapV2 } from './world/ZoneMapV2';
 import { ZoneType } from './world/WorldConfigV2';
 import { findNearestZonePoint } from './world/Spawn';
 import { placeNameAt } from './world/Places';
+import { FEATURES } from './features';
 import { Input } from './game/Input';
 import { createPlayerState, facingToYaw, PlayerState, stepPlayer } from './game/PlayerController';
 import { CameraRig } from './game/CameraRig';
@@ -41,7 +42,7 @@ export class ThreeGame {
     private occluders: THREE.Object3D[] = [];
     private build: BuildSystem;
     private remotes: RemotePlayers;
-    private pickups: Pickups;
+    private pickups: Pickups | null;
     private combat = new CombatController();
     private pointer: PointerControls;
     private cursor: CursorTools;
@@ -63,7 +64,7 @@ export class ThreeGame {
 
         this.build = new BuildSystem(this.scene, this.zoneMap, this.occluders);
         this.remotes = new RemotePlayers(this.scene);
-        this.pickups = new Pickups(this.scene);
+        this.pickups = FEATURES.combat ? new Pickups(this.scene) : null;
 
         this.avatar = createCharacter(opts.config);
         this.avatar.position.set(this.player.x, 0, this.player.y);
@@ -149,7 +150,7 @@ export class ThreeGame {
             const s = this.rig.toScreen(hit.target.position, window.innerWidth, window.innerHeight);
             this.opts.events.onDamageDealt?.(hit.damage, s.x, s.y);
         }
-        const picked = this.pickups.update(dt, time, p.x, p.y, !this.combat.state.weapon);
+        const picked = this.pickups?.update(dt, time, p.x, p.y, !this.combat.state.weapon) ?? null;
         if (picked) {
             this.combat.equip(picked);
             attachWeapon(this.avatar, picked);
@@ -207,7 +208,7 @@ export class ThreeGame {
             this.toggleFreeCamera();
             return;
         }
-        if (this.rig.freeEnabled) return;
+        if (this.rig.freeEnabled || !FEATURES.combat) return;
         if (code === 'KeyJ' || code === 'KeyZ') this.handleAttack('punch');
         else if (code === 'KeyK' || code === 'KeyX') this.handleAttack('kick');
         else if (code === 'KeyL' || code === 'KeyC') this.handleAttack('weapon');
@@ -215,7 +216,7 @@ export class ThreeGame {
     };
 
     handleAttack(type: AttackType) {
-        this.combat.attack(type, this.animator, performance.now() / 1000);
+        if (FEATURES.combat) this.combat.attack(type, this.animator, performance.now() / 1000);
     }
 
     handleDropWeapon() {
@@ -289,7 +290,7 @@ export class ThreeGame {
         this.pointer.dispose();
         this.build.dispose();
         this.remotes.dispose();
-        this.pickups.dispose();
+        this.pickups?.dispose();
         this.renderer.dispose();
         this.renderer.domElement.remove();
     }

@@ -56,4 +56,20 @@ describe('HUD', () => {
     // Health should be displayed somewhere
     expect(screen.getByText(/50/)).toBeInTheDocument();
   });
+
+  it('hides combat UI when combat is off', () => {
+    render(<HUD state={makeGameState({ weapon: 'sword', health: 42, isDead: true })} combat={false} />);
+    expect(screen.queryByText(/sword/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/42/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/YOU DIED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Combat:/)).not.toBeInTheDocument();
+    expect(screen.getByText(/100/)).toBeInTheDocument(); // money still shown
+  });
+
+  it('shows the floor chip only above ground', () => {
+    const { rerender } = render(<HUD state={makeGameState({ level: 0 })} />);
+    expect(screen.queryByText(/2nd Floor/)).not.toBeInTheDocument();
+    rerender(<HUD state={makeGameState({ level: 1 })} />);
+    expect(screen.getByText(/2nd Floor/)).toBeInTheDocument();
+  });
 });
