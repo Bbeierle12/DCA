@@ -26,8 +26,19 @@ def is_upbge() -> bool:
 
 
 def reset_scene() -> bpy.types.Scene:
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+    """Empties the current scene in place.
+
+    Not read_factory_settings(): inside UPBGE that re-registers the logic-node add-on and
+    crashes Blender (EXCEPTION_ACCESS_VIOLATION, seen 2026-10-01).
+    """
     scene = bpy.context.scene
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
+    for child in list(scene.collection.children):
+        bpy.data.collections.remove(child)
+    for datablocks in (bpy.data.meshes, bpy.data.lights, bpy.data.cameras, bpy.data.materials):
+        for block in list(datablocks):
+            datablocks.remove(block)
     scene.name = "London"
     scene.unit_settings.system = "METRIC"
     scene.unit_settings.scale_length = 1.0

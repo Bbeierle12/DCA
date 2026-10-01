@@ -20,3 +20,10 @@ def test_build_writes_blend_and_ships_packages(tmp_path: Path):
     assert {"Ground", "Sun", "Camera", "Game"} <= set(scene.objects.keys())
     assert scene.camera.name == "Camera"
     assert scene.objects["Ground"].dimensions.x == 100.0
+
+
+def test_build_replaces_whatever_was_in_the_scene(tmp_path: Path):
+    bpy.ops.wm.read_factory_settings(use_empty=False)  # default cube, camera, light
+    assert "Cube" in bpy.data.objects
+    build_game.build(tmp_path / "dca.blend")
+    assert "Cube" not in bpy.context.scene.objects
