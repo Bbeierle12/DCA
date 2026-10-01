@@ -242,3 +242,23 @@ updated; `tools/build_game.py` now sets the game resolution to 1280x720 and
   `DCA_UPBGE=0.50`); tests run on bpy 3.6.0 from download.blender.org/pypi with Python 3.10;
   the build sets lite EEVEE and a 90 fps cap. B5 back to `[~]`: next is the hitches.
 - Sandbox: verify OK on bpy 3.6.0 (58 tests).
+
+## 2026-10-01 - B5 on UPBGE 0.36.1: throughput met, hitches remain
+
+- PC setup for Python 3.10: the Claude desktop app virtualises AppData, so uv's managed Python
+  links broke ("Missing expected target directory"); uv Python now lives in `.upbge/python`
+  (`UV_PYTHON_INSTALL_DIR`). download.blender.org answers the PC with a Cloudflare challenge,
+  so the bpy 3.6 wheel is a `[bpy]` extra used in the sandbox; on the PC `verify.py` runs the
+  same 58 tests inside UPBGE 0.36.1's Blender (exit codes propagate; read_factory_settings is
+  fine in 0.36, it only crashed 0.50).
+- PC `verify.py --upbge`: lint OK, 58 tests OK in UPBGE's Blender, UPBGE build OK, smoke PASS.
+- streets, 3 back-to-back runs (avg / 1%-low / frames over 22 ms, per spot):
+  - run 0 PASSED: spawn 88.9/47.0/5, Oxford 88.7/52.1/1, Piccadilly 88.7/55.3/1, Trafalgar 87.8/45.5/1
+  - run 1: spawn 88.1/46.4/2, Oxford 88.8/55.1/1, Piccadilly 88.7/49.1/2, Trafalgar 88.1/38.8/5
+  - run 2: spawn 86.2/36.1/8, Oxford 87.9/39.7/4, Piccadilly 87.2/26.5/9, Trafalgar 88.6/54.5/2
+- So goal 3's average is met with ~30% headroom; the 1%-low fails on a handful of 20-50 ms
+  frames per 10 s. Docker Desktop, Chrome, Steam and CurseForge were running; GC is ruled out.
+  Next for B5: find the hitch source (run with background apps closed; check whether spikes
+  line up with Depsgraph/logic work; try `game.use_frame_rate` vs vsync pacing).
+- The streets footing check now accepts anything solid at standing height (-0.2..0.5 m): the
+  Trafalgar spot stands on a 0.33 m kerbside prop.

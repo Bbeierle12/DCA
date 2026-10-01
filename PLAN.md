@@ -134,7 +134,7 @@ PROVEN 2026-10-01 (sandbox 13 tests; PC `verify.py --upbge` OK, smoke avg 80 fps
   AC: bpy test checks 800 m extent, object budget, every material valid.
 - [x] B4 (17937a8; 2214/2214 probe names and 10/10 spawn searches match the TS) Port place names, pavement spawn and zone lookup to `dca/world/` with the same test
   cases as the prototype ((430, 260) -> "Oxford Circus", spawn on `clear_walk`).
-- [~] B5 (D11 moved to UPBGE 0.36.1: 97-145 fps avg; 1%-lows 43-61 with a 90-120 cap, hitches remain) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
+- [~] B5 (UPBGE 0.36.1, lite EEVEE, 90 fps cap: avg 86-89 fps at all 4 spots every run; 1%-low >= 45 at all 4 spots in 1 of 3 runs, 26-55 otherwise; next: the 20-50 ms hitches) Performance baseline in UPBGE at the 4 key spots (harness), then fix to completion
   goal 3 (join by material per chunk, instancing for props, LOD or culling if needed).
 
 Exit: the world loads in UPBGE and meets goal 3 with an empty street.
