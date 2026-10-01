@@ -19,3 +19,21 @@ def test_one_percent_low_catches_hitches():
 def test_empty_and_zero_frames_are_ignored():
     assert frame_stats([]).frames == 0
     assert frame_stats([0.0, 0.0]).avg_fps == 0.0
+
+
+def test_spikes_finds_the_slow_frames():
+    from dca.metrics import spikes
+
+    times = [0.01] * 100
+    times[10] = 0.05
+    times[60] = 0.03
+    out = spikes(times)
+    assert out["median_ms"] == 10.0
+    assert out["over_budget"] == 2  # 1/45 s = 22.2 ms
+    assert out["worst"][:2] == [[10, 50.0], [60, 30.0]]
+
+
+def test_spikes_empty():
+    from dca.metrics import spikes
+
+    assert spikes([]) == {"median_ms": 0.0, "over_budget": 0, "worst": []}

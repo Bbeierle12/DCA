@@ -28,7 +28,7 @@ def tick(cont):
         if "scenario" in args:
             from game.harness import Harness
 
-            _state["harness"] = Harness(args["scenario"], args.get("results", "results"))
+            _state["harness"] = Harness(args["scenario"], args.get("results", "results"), args)
     harness = _state["harness"]
     if harness is not None:
         harness.tick()

@@ -6,6 +6,7 @@ A scenario is a generator `run(ctx)`; each `yield` advances one frame.
 
 from __future__ import annotations
 
+import gc
 import importlib
 import json
 import os
@@ -14,7 +15,7 @@ import traceback
 
 import bge
 
-from dca.metrics import frame_stats
+from dca.metrics import frame_stats, spikes
 from game.scenarios.registry import SCENARIOS
 
 MAX_SECONDS = 180.0
@@ -81,6 +82,7 @@ class ScenarioContext:
         self.window = None
         if label:
             self.metric(label, frame_stats(window).as_dict())
+            self.metric(f"{label}_spikes", spikes(window))
             profile = profile_info()
             if profile:
                 self.metric(f"{label}_profile", profile)
@@ -93,8 +95,16 @@ class ScenarioContext:
 
 
 class Harness:
-    def __init__(self, name: str, results_dir: str):
+    def __init__(self, name: str, results_dir: str, options: dict | None = None):
         self.ctx = ScenarioContext(name)
+        self.options = options or {}
+        # --gc off|freeze: experiment with Python's garbage collector as a source of hitches.
+        if self.options.get("gc") == "off":
+            gc.disable()
+        elif self.options.get("gc") == "freeze":
+            gc.collect()
+            gc.freeze()
+        self.ctx.metric("options", self.options)
         self.results_dir = results_dir
         self.started = time.perf_counter()
         self.last = None

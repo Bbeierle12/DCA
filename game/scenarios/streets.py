@@ -35,8 +35,8 @@ def run(ctx):
     probe = scene.objects["Game"]
     for label, x, y in perf.key_spots(world):
         hit, point, _ = probe.rayCast((x, y, -5.0), (x, y, 3.0))
-        ctx.check(f"{label}: solid ground", hit is not None and kind_of(hit) in ("surface", "ground"),
-                  kind_of(hit) if hit is not None else None)
+        detail = [kind_of(hit), hit.name, round(point[2], 2)] if hit is not None else None
+        ctx.check(f"{label}: solid ground", hit is not None and kind_of(hit) in ("surface", "ground"), detail)
         ground_z = point[2] if hit is not None else 0.0
 
         def turn(t, x=x, y=y, ground_z=ground_z):
